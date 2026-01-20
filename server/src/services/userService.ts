@@ -1,3 +1,9 @@
+/**
+ * User Service
+ * Handles all user profile operations and saved schemes
+ * Author: Sanskar Kotalwar
+ */
+
 import db from '../config/database.js';
 import { v4 as uuidv4 } from 'uuid';
 import type {
