@@ -1,9 +1,9 @@
 import { useParams, Link } from "react-router-dom";
-import { 
-  ArrowLeft, 
-  Building, 
-  MapPin, 
-  Calendar, 
+import { useState, useEffect } from "react";
+import {
+  ArrowLeft,
+  MapPin,
+  Calendar,
   ExternalLink,
   CheckCircle2,
   AlertCircle,
@@ -13,19 +13,104 @@ import {
   Bookmark,
   MessageCircle,
   Share2,
-  ChevronRight
+  ChevronRight,
+  Tag,
+  Loader2
 } from "lucide-react";
 import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { mockSchemes } from "@/data/mockSchemes";
 import { SchemeDetailSkeleton } from "@/components/ui/skeleton-card";
+import {
+  getSchemeBySlug,
+  checkSchemeEligibility,
+  type Scheme,
+  type EligibilityResult,
+  type EligibilityStatus,
+  type UserProfile
+} from "@/lib/api";
+import { toast } from "sonner";
 
 export default function SchemeDetail() {
   const { id } = useParams<{ id: string }>();
-  const scheme = mockSchemes.find((s) => s.id === id);
+  const [scheme, setScheme] = useState<Scheme | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [eligibility, setEligibility] = useState<EligibilityResult | null>(null);
+  const [isCheckingEligibility, setIsCheckingEligibility] = useState(false);
+  const [isSaved, setIsSaved] = useState(false);
+
+  // Load scheme data
+  useEffect(() => {
+    async function loadScheme() {
+      if (!id) return;
+
+      setIsLoading(true);
+      const result = await getSchemeBySlug(id);
+
+      if (result.success && result.data) {
+        setScheme(result.data);
+      } else {
+        setScheme(null);
+      }
+      setIsLoading(false);
+    }
+
+    loadScheme();
+  }, [id]);
+
+  // Check eligibility
+  const handleCheckEligibility = async () => {
+    if (!scheme) return;
+
+    // Get user profile from localStorage or use demo profile
+    const storedProfile = localStorage.getItem("userProfile");
+    const userProfile: Partial<UserProfile> = storedProfile
+      ? JSON.parse(storedProfile)
+      : {
+        age: 35,
+        state: "Maharashtra",
+        category: "general",
+        isWorker: true,
+      };
+
+    setIsCheckingEligibility(true);
+    const result = await checkSchemeEligibility(scheme.id, userProfile);
+
+    if (result.success && result.data) {
+      setEligibility(result.data);
+    }
+    setIsCheckingEligibility(false);
+  };
+
+  const handleSaveScheme = () => {
+    setIsSaved(!isSaved);
+    toast.success(isSaved ? "Scheme removed from saved list" : "Scheme saved successfully");
+  };
+
+  const handleShare = () => {
+    if (navigator.share) {
+      navigator.share({
+        title: scheme?.name,
+        text: `Check out this government scheme: ${scheme?.name}`,
+        url: window.location.href,
+      });
+    } else {
+      navigator.clipboard.writeText(window.location.href);
+      toast.success("Link copied to clipboard");
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <Layout>
+        <div className="container-gov section-padding">
+          <SchemeDetailSkeleton />
+        </div>
+      </Layout>
+    );
+  }
 
   if (!scheme) {
     return (
@@ -41,8 +126,8 @@ export default function SchemeDetail() {
     );
   }
 
-  const getEligibilityConfig = () => {
-    switch (scheme.eligibility.status) {
+  const getEligibilityConfig = (status?: EligibilityStatus) => {
+    switch (status) {
       case "eligible":
         return {
           icon: CheckCircle2,
@@ -51,7 +136,7 @@ export default function SchemeDetail() {
           textClass: "text-success",
           borderClass: "border-success/20"
         };
-      case "possibly-eligible":
+      case "possibly_eligible":
         return {
           icon: AlertCircle,
           label: "Possibly Eligible",
@@ -59,7 +144,7 @@ export default function SchemeDetail() {
           textClass: "text-warning",
           borderClass: "border-warning/20"
         };
-      case "not-eligible":
+      case "not_eligible":
         return {
           icon: XCircle,
           label: "Not Eligible",
@@ -70,7 +155,7 @@ export default function SchemeDetail() {
       default:
         return {
           icon: HelpCircle,
-          label: "Login to Check",
+          label: "Check Eligibility",
           bgClass: "bg-muted",
           textClass: "text-muted-foreground",
           borderClass: "border-border"
@@ -78,8 +163,49 @@ export default function SchemeDetail() {
     }
   };
 
-  const eligibility = getEligibilityConfig();
-  const EligibilityIcon = eligibility.icon;
+  const eligibilityConfig = getEligibilityConfig(eligibility?.status);
+  const EligibilityIcon = eligibilityConfig.icon;
+
+  // Parse eligibility criteria from text
+  const parseEligibilityCriteria = (text: string): string[] => {
+    if (!text) return [];
+    // Split by common delimiters
+    const lines = text.split(/\n|;|\d+\.\s+/).filter(line => line.trim().length > 10);
+    return lines.slice(0, 6).map(line => line.trim().replace(/^[-•*]\s*/, ''));
+  };
+
+  // Parse documents from text
+  const parseDocuments = (text: string): string[] => {
+    if (!text) return [];
+    const lines = text.split(/\n|;|\d+\.\s+/).filter(line => line.trim().length > 5);
+    return lines.slice(0, 10).map(line => line.trim().replace(/^[-•*]\s*/, ''));
+  };
+
+  // Parse application steps
+  const parseApplicationSteps = (text: string): Array<{ step: number; title: string; description: string }> => {
+    if (!text) return [];
+    const lines = text.split(/\n/).filter(line => line.trim().length > 10);
+    return lines.slice(0, 8).map((line, index) => {
+      const cleaned = line.trim().replace(/^(?:Step\s*)?(\d+)[.:)\-]\s*/i, '');
+      return {
+        step: index + 1,
+        title: `Step ${index + 1}`,
+        description: cleaned
+      };
+    });
+  };
+
+  // Extract benefit amount
+  const extractBenefitAmount = (): string | null => {
+    if (!scheme.benefits) return null;
+    const match = scheme.benefits.match(/₹[\s]*[\d,]+(?:[\s]*(?:lakh|crore|per\s+(?:month|year|annum)|\/-))?/i);
+    return match ? match[0] : null;
+  };
+
+  const benefitAmount = extractBenefitAmount();
+  const eligibilityCriteria = parseEligibilityCriteria(scheme.eligibility);
+  const documents = parseDocuments(scheme.documents);
+  const applicationSteps = parseApplicationSteps(scheme.application);
 
   return (
     <Layout>
@@ -100,66 +226,112 @@ export default function SchemeDetail() {
             {/* Header */}
             <div>
               <div className="flex flex-wrap items-center gap-2 mb-3">
-                <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
-                  {scheme.benefitType}
+                <Badge variant="outline" className={scheme.level === "Central" ? "bg-primary/10 text-primary border-primary/20" : "bg-accent/10 text-accent border-accent/20"}>
+                  {scheme.level}
                 </Badge>
-                <Badge variant="outline">{scheme.level}</Badge>
-                <Badge variant="outline">{scheme.category}</Badge>
+                {scheme.category && (
+                  <Badge variant="outline">{scheme.category.split(",")[0]}</Badge>
+                )}
               </div>
-              
+
               <h1 className="text-2xl md:text-3xl font-bold text-foreground mb-4">
                 {scheme.name}
               </h1>
-              
+
               <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
                 <span className="flex items-center gap-1">
-                  <Building className="h-4 w-4" />
-                  {scheme.ministry}
+                  <Tag className="h-4 w-4" />
+                  {scheme.category?.split(",")[0] || "General"}
                 </span>
                 <span className="flex items-center gap-1">
                   <MapPin className="h-4 w-4" />
-                  {scheme.level === "Central" ? "All India" : scheme.state}
+                  {scheme.level === "Central" ? "All India" : scheme.state || "State Scheme"}
                 </span>
-                {scheme.deadline && (
-                  <span className="flex items-center gap-1">
-                    <Calendar className="h-4 w-4" />
-                    Deadline: {scheme.deadline}
-                  </span>
-                )}
               </div>
             </div>
 
-            {/* Eligibility Snapshot */}
-            <Card className={`${eligibility.bgClass} border ${eligibility.borderClass}`}>
+            {/* Eligibility Check Card */}
+            <Card className={`${eligibilityConfig.bgClass} border ${eligibilityConfig.borderClass}`}>
               <CardContent className="p-6">
                 <div className="flex items-start gap-4">
-                  <div className={`w-12 h-12 rounded-full ${eligibility.bgClass} flex items-center justify-center shrink-0`}>
-                    <EligibilityIcon className={`h-6 w-6 ${eligibility.textClass}`} />
+                  <div className={`w-12 h-12 rounded-full ${eligibilityConfig.bgClass} flex items-center justify-center shrink-0`}>
+                    <EligibilityIcon className={`h-6 w-6 ${eligibilityConfig.textClass}`} />
                   </div>
                   <div className="flex-1">
-                    <h3 className={`font-semibold ${eligibility.textClass} mb-2`}>
-                      {eligibility.label}
+                    <h3 className={`font-semibold ${eligibilityConfig.textClass} mb-2`}>
+                      {eligibilityConfig.label}
                     </h3>
-                    {scheme.eligibility.reasons && scheme.eligibility.reasons.length > 0 && (
-                      <p className="text-sm text-muted-foreground mb-3">
-                        {scheme.eligibility.reasons[0]}
-                      </p>
+
+                    {eligibility ? (
+                      <>
+                        {eligibility.matchedCriteria.length > 0 && (
+                          <div className="mb-3">
+                            <p className="text-xs text-muted-foreground mb-1">Matched criteria:</p>
+                            <ul className="space-y-1">
+                              {eligibility.matchedCriteria.map((criterion, index) => (
+                                <li key={index} className="flex items-start gap-2 text-sm text-success">
+                                  <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5" />
+                                  <span>{criterion}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {eligibility.unmatchedCriteria.length > 0 && (
+                          <div>
+                            <p className="text-xs text-muted-foreground mb-1">May not match:</p>
+                            <ul className="space-y-1">
+                              {eligibility.unmatchedCriteria.map((criterion, index) => (
+                                <li key={index} className="flex items-start gap-2 text-sm text-destructive">
+                                  <XCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                                  <span>{criterion}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        <p className="text-xs text-muted-foreground mt-3">
+                          Confidence: {eligibility.confidence}% • Final eligibility determined by authorities
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-sm text-muted-foreground mb-3">
+                          Check if you're eligible for this scheme based on your profile.
+                        </p>
+                        <Button
+                          onClick={handleCheckEligibility}
+                          disabled={isCheckingEligibility}
+                          size="sm"
+                        >
+                          {isCheckingEligibility && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                          Check My Eligibility
+                        </Button>
+                      </>
                     )}
-                    <div>
-                      <p className="text-xs text-muted-foreground mb-2">Eligibility criteria:</p>
-                      <ul className="space-y-1">
-                        {scheme.eligibility.criteria.map((criterion, index) => (
-                          <li key={index} className="flex items-start gap-2 text-sm">
-                            <CheckCircle2 className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
-                            <span>{criterion}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
                   </div>
                 </div>
               </CardContent>
             </Card>
+
+            {/* Eligibility Criteria */}
+            {eligibilityCriteria.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Eligibility Criteria</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ul className="space-y-2">
+                    {eligibilityCriteria.map((criterion, index) => (
+                      <li key={index} className="flex items-start gap-2 text-sm">
+                        <CheckCircle2 className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+                        <span>{criterion}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Overview */}
             <Card>
@@ -167,71 +339,69 @@ export default function SchemeDetail() {
                 <CardTitle className="text-lg">About this Scheme</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-muted-foreground leading-relaxed">
-                  {scheme.fullDescription}
+                <p className="text-muted-foreground leading-relaxed whitespace-pre-line">
+                  {scheme.details || "No detailed description available for this scheme."}
                 </p>
               </CardContent>
             </Card>
 
             {/* Documents Required */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <FileText className="h-5 w-5" />
-                  Documents Required
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {scheme.documentsRequired.map((doc, index) => (
-                    <div key={index} className="flex items-center gap-3 p-3 rounded-lg bg-secondary/50">
-                      <Checkbox id={`doc-${index}`} />
-                      <label 
-                        htmlFor={`doc-${index}`} 
-                        className="text-sm cursor-pointer flex-1"
-                      >
-                        {doc}
-                      </label>
-                    </div>
-                  ))}
-                </div>
-                <p className="text-xs text-muted-foreground mt-4">
-                  Check the documents you already have. This helps track your application readiness.
-                </p>
-              </CardContent>
-            </Card>
+            {documents.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <FileText className="h-5 w-5" />
+                    Documents Required
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {documents.map((doc, index) => (
+                      <div key={index} className="flex items-center gap-3 p-3 rounded-lg bg-secondary/50">
+                        <Checkbox id={`doc-${index}`} />
+                        <label
+                          htmlFor={`doc-${index}`}
+                          className="text-sm cursor-pointer flex-1"
+                        >
+                          {doc}
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-4">
+                    Check the documents you already have. This helps track your application readiness.
+                  </p>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Application Steps */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">How to Apply</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {scheme.applicationSteps.map((step, index) => (
-                    <div key={step.step} className="flex gap-4">
-                      <div className="flex flex-col items-center">
-                        <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-medium">
-                          {step.step}
+            {applicationSteps.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">How to Apply</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {applicationSteps.map((step, index) => (
+                      <div key={step.step} className="flex gap-4">
+                        <div className="flex flex-col items-center">
+                          <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-medium">
+                            {step.step}
+                          </div>
+                          {index < applicationSteps.length - 1 && (
+                            <div className="w-0.5 h-full bg-border mt-2" />
+                          )}
                         </div>
-                        {index < scheme.applicationSteps.length - 1 && (
-                          <div className="w-0.5 h-full bg-border mt-2" />
-                        )}
-                      </div>
-                      <div className="flex-1 pb-6">
-                        <div className="flex items-center gap-2 mb-1">
-                          <h4 className="font-medium text-foreground">{step.title}</h4>
-                          <Badge variant="outline" className="text-xs">
-                            {step.mode}
-                          </Badge>
+                        <div className="flex-1 pb-6">
+                          <p className="text-sm text-muted-foreground">{step.description}</p>
                         </div>
-                        <p className="text-sm text-muted-foreground">{step.description}</p>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
 
           {/* Sidebar */}
@@ -242,35 +412,25 @@ export default function SchemeDetail() {
                 <CardTitle className="text-lg text-success">Benefits</CardTitle>
               </CardHeader>
               <CardContent className="pt-4">
-                {scheme.benefitAmount && (
+                {benefitAmount && (
                   <div className="text-center p-4 rounded-lg bg-success/5 mb-4">
-                    <p className="text-2xl font-bold text-success">{scheme.benefitAmount}</p>
-                    <p className="text-sm text-muted-foreground">{scheme.benefitType}</p>
+                    <p className="text-2xl font-bold text-success">{benefitAmount}</p>
                   </div>
                 )}
-                <p className="text-sm text-muted-foreground">
-                  {scheme.shortDescription}
+                <p className="text-sm text-muted-foreground whitespace-pre-line">
+                  {scheme.benefits || "Benefit details not available."}
                 </p>
               </CardContent>
             </Card>
 
             {/* Action Buttons */}
             <div className="space-y-3">
-              {scheme.applicationUrl && (
-                <Button asChild className="w-full bg-accent hover:bg-accent/90">
-                  <a href={scheme.applicationUrl} target="_blank" rel="noopener noreferrer">
-                    Apply Now
-                    <ExternalLink className="h-4 w-4 ml-2" />
-                  </a>
-                </Button>
-              )}
-              
-              <Button variant="outline" className="w-full">
-                <Bookmark className="h-4 w-4 mr-2" />
-                Save Scheme
+              <Button className="w-full" variant="outline" onClick={handleSaveScheme}>
+                <Bookmark className={`h-4 w-4 mr-2 ${isSaved ? "fill-current" : ""}`} />
+                {isSaved ? "Saved" : "Save Scheme"}
               </Button>
-              
-              <Button variant="ghost" className="w-full">
+
+              <Button variant="ghost" className="w-full" onClick={handleShare}>
                 <Share2 className="h-4 w-4 mr-2" />
                 Share
               </Button>
@@ -295,20 +455,22 @@ export default function SchemeDetail() {
             </Card>
 
             {/* Tags */}
-            <div>
-              <p className="text-sm text-muted-foreground mb-2">Related topics:</p>
-              <div className="flex flex-wrap gap-2">
-                {scheme.tags.map((tag) => (
-                  <Link
-                    key={tag}
-                    to={`/search?q=${encodeURIComponent(tag)}`}
-                    className="px-3 py-1 rounded-full bg-secondary text-secondary-foreground text-sm hover:bg-secondary/80 transition-colors"
-                  >
-                    {tag}
-                  </Link>
-                ))}
+            {scheme.tags && scheme.tags.length > 0 && (
+              <div>
+                <p className="text-sm text-muted-foreground mb-2">Related topics:</p>
+                <div className="flex flex-wrap gap-2">
+                  {scheme.tags.map((tag) => (
+                    <Link
+                      key={tag}
+                      to={`/search?q=${encodeURIComponent(tag)}`}
+                      className="px-3 py-1 rounded-full bg-secondary text-secondary-foreground text-sm hover:bg-secondary/80 transition-colors"
+                    >
+                      {tag}
+                    </Link>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
       </div>

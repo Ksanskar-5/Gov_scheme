@@ -1,73 +1,193 @@
-# Welcome to your Lovable project
+# 🇮🇳 Bharat Scheme Guide
 
-## Project info
+An AI-powered platform to help Indian citizens discover and understand government welfare schemes they're eligible for. The platform features an intelligent chatbot that provides personalized scheme recommendations based on user profiles.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+![React](https://img.shields.io/badge/React-18.3-blue?logo=react)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.8-blue?logo=typescript)
+![Node.js](https://img.shields.io/badge/Node.js-18+-green?logo=node.js)
+![SQLite](https://img.shields.io/badge/SQLite-3-blue?logo=sqlite)
 
-## How can I edit this code?
+## ✨ Features
 
-There are several ways of editing your application.
+- 🔍 **Smart Search** - Search government schemes by name, category, or eligibility criteria
+- 🤖 **AI Chatbot** - Get personalized scheme recommendations through an intelligent chat interface
+- 📊 **Detailed Information** - Comprehensive details about each scheme including benefits, eligibility, and application process
+- 🏷️ **Category Filtering** - Browse schemes by categories like Education, Healthcare, Agriculture, etc.
+- 📱 **Responsive Design** - Works seamlessly on desktop, tablet, and mobile devices
 
-**Use Lovable**
+## 🛠️ Tech Stack
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+### Frontend
+- **React 18** with TypeScript
+- **Vite** for fast development and building
+- **Tailwind CSS** for styling
+- **shadcn/ui** for UI components
+- **React Query** for data fetching
+- **React Router** for navigation
 
-Changes made via Lovable will be committed automatically to this repo.
+### Backend
+- **Node.js** with Express
+- **TypeScript** for type safety
+- **SQLite** with better-sqlite3 for database
+- **Google Gemini AI** for chatbot intelligence
+- **Helmet** for security
+- **Express Rate Limit** for API protection
 
-**Use your preferred IDE**
+## 📋 Prerequisites
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+- Node.js 18 or higher
+- npm or yarn
+- Google Gemini API key (free tier available)
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+## 🚀 Getting Started
 
-Follow these steps:
+### 1. Clone the Repository
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+```bash
+git clone https://github.com/YOUR_USERNAME/bharat-scheme-guide.git
+cd bharat-scheme-guide
+```
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+### 2. Setup Frontend
 
-# Step 3: Install the necessary dependencies.
-npm i
+```bash
+# Install dependencies
+npm install
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+# Copy environment file and configure
+cp .env.example .env
+```
+
+Edit `.env` and update if needed:
+```env
+VITE_API_URL=http://localhost:3001/api
+```
+
+### 3. Setup Backend
+
+```bash
+# Navigate to server directory
+cd server
+
+# Install dependencies
+npm install
+
+# Copy environment file
+cp .env.example .env
+```
+
+Edit `server/.env` and add your API key:
+```env
+GEMINI_API_KEY=your_gemini_api_key_here
+```
+
+### 4. Import Scheme Data
+
+```bash
+# In the server directory
+npm run import-schemes
+```
+
+### 5. Run the Application
+
+**Terminal 1 - Backend:**
+```bash
+cd server
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+**Terminal 2 - Frontend:**
+```bash
+# From project root
+npm run dev
+```
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+### 6. Access the Application
 
-**Use GitHub Codespaces**
+- **Frontend:** http://localhost:5173 (or the port shown in terminal)
+- **Backend API:** http://localhost:3001/api
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+## 📁 Project Structure
 
-## What technologies are used for this project?
+```
+bharat-scheme-guide/
+├── src/                    # Frontend source code
+│   ├── components/         # React components
+│   ├── pages/             # Page components
+│   ├── lib/               # Utilities and API client
+│   └── hooks/             # Custom React hooks
+├── server/                 # Backend source code
+│   ├── src/
+│   │   ├── routes/        # API routes
+│   │   ├── services/      # Business logic
+│   │   ├── models/        # Data models
+│   │   └── config/        # Configuration
+│   ├── data/              # Database files
+│   └── scripts/           # Utility scripts
+├── public/                 # Static assets
+└── README.md
+```
 
-This project is built with:
+## 🔧 Available Scripts
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+### Frontend
 
-## How can I deploy this project?
+| Script | Description |
+|--------|-------------|
+| `npm run dev` | Start development server |
+| `npm run build` | Build for production |
+| `npm run preview` | Preview production build |
+| `npm run lint` | Run ESLint |
+| `npm run test` | Run tests |
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
+### Backend
 
-## Can I connect a custom domain to my Lovable project?
+| Script | Description |
+|--------|-------------|
+| `npm run dev` | Start development server with hot reload |
+| `npm run build` | Compile TypeScript |
+| `npm run start` | Start production server |
+| `npm run import-schemes` | Import scheme data from CSV |
+| `npm run seed` | Seed database with sample data |
 
-Yes, you can!
+## 🔑 Environment Variables
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+### Frontend (`.env`)
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `VITE_API_URL` | Backend API URL | `http://localhost:3001/api` |
+
+### Backend (`server/.env`)
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `PORT` | Server port | `3001` |
+| `NODE_ENV` | Environment | `development` |
+| `DATABASE_PATH` | SQLite database path | `./data/schemes.db` |
+| `GEMINI_API_KEY` | Google Gemini API key | Required |
+| `FRONTEND_URL` | Frontend URL for CORS | `http://localhost:5173` |
+| `RATE_LIMIT_WINDOW_MS` | Rate limit window | `60000` |
+| `RATE_LIMIT_MAX_REQUESTS` | Max requests per window | `100` |
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## 📝 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🙏 Acknowledgments
+
+- Government of India for providing scheme information
+- Google for Gemini AI API
+- The open-source community for the amazing tools and libraries
+
+---
+
+Made with ❤️ for Digital India 🇮🇳

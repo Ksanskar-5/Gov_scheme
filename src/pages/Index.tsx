@@ -1,12 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { 
-  Search, 
-  ArrowRight, 
-  GraduationCap, 
-  Tractor, 
-  Building2, 
-  Users, 
+import {
+  Search,
+  ArrowRight,
+  GraduationCap,
+  Tractor,
+  Building2,
+  Users,
   Heart,
   Shield,
   UserCheck,
@@ -17,35 +17,36 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Layout } from "@/components/layout/Layout";
+import { getSchemeStats } from "@/lib/api";
 
 const userCategories = [
-  { 
-    icon: GraduationCap, 
-    title: "Students", 
+  {
+    icon: GraduationCap,
+    title: "Students",
     description: "Scholarships, education loans, skill programs",
     link: "/search?category=Education"
   },
-  { 
-    icon: Tractor, 
-    title: "Farmers", 
+  {
+    icon: Tractor,
+    title: "Farmers",
     description: "Subsidies, crop insurance, equipment support",
     link: "/search?category=Agriculture"
   },
-  { 
-    icon: Building2, 
-    title: "MSMEs", 
+  {
+    icon: Building2,
+    title: "MSMEs",
     description: "Business loans, training, market access",
     link: "/search?category=Business+%26+MSME"
   },
-  { 
-    icon: Users, 
-    title: "Workers", 
+  {
+    icon: Users,
+    title: "Workers",
     description: "Pension, insurance, skill development",
     link: "/search?category=Social+Security"
   },
-  { 
-    icon: Heart, 
-    title: "Families in Need", 
+  {
+    icon: Heart,
+    title: "Families in Need",
     description: "Housing, healthcare, social security",
     link: "/search?category=Social+Security"
   }
@@ -60,7 +61,7 @@ const howItWorks = [
   {
     step: 2,
     title: "AI finds best schemes",
-    description: "Our AI matches your profile with 1000+ government schemes across India."
+    description: "Our AI matches your profile with 3,400+ government schemes across India."
   },
   {
     step: 3,
@@ -77,7 +78,19 @@ const trustIndicators = [
 
 export default function Index() {
   const [searchQuery, setSearchQuery] = useState("");
+  const [stats, setStats] = useState<{ total: number; central: number; state: number } | null>(null);
   const navigate = useNavigate();
+
+  // Fetch scheme stats on mount
+  useEffect(() => {
+    async function loadStats() {
+      const result = await getSchemeStats();
+      if (result.success && result.data) {
+        setStats(result.data);
+      }
+    }
+    loadStats();
+  }, []);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -86,28 +99,30 @@ export default function Index() {
     }
   };
 
+  const totalSchemes = stats?.total?.toLocaleString() || "3,400+";
+
   return (
     <Layout>
       {/* Hero Section */}
       <section className="relative overflow-hidden" style={{ background: 'var(--gradient-hero)' }}>
         <div className="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg%20width%3D%2260%22%20height%3D%2260%22%20viewBox%3D%220%200%2060%2060%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Cg%20fill%3D%22none%22%20fill-rule%3D%22evenodd%22%3E%3Cg%20fill%3D%22%23ffffff%22%20fill-opacity%3D%220.03%22%3E%3Cpath%20d%3D%22M36%2034v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6%2034v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6%204V0H4v4H0v2h4v4h2V6h4V4H6z%22%2F%3E%3C%2Fg%3E%3C%2Fg%3E%3C%2Fsvg%3E')] opacity-50" />
-        
+
         <div className="container-gov relative">
           <div className="py-16 md:py-24 lg:py-32 text-center max-w-4xl mx-auto">
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary-foreground/10 text-primary-foreground text-sm mb-6 animate-fade-in">
               <Sparkles className="h-4 w-4" />
               <span>AI-powered scheme discovery</span>
             </div>
-            
+
             <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-primary-foreground leading-tight mb-6 animate-fade-in">
               Find government schemes you're{" "}
               <span className="text-gradient">actually eligible</span> for
             </h1>
-            
+
             <p className="text-lg md:text-xl text-primary-foreground/80 mb-8 max-w-2xl mx-auto animate-fade-in">
-              Personalized. Simple. No agents. Discover and apply for 1000+ central & state schemes.
+              Personalized. Simple. No agents. Discover and apply for {totalSchemes} central & state schemes.
             </p>
-            
+
             <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12 animate-slide-up">
               <Link to="/profile" className="btn-hero">
                 Check my eligibility
@@ -130,8 +145,8 @@ export default function Index() {
                   onChange={(e) => setSearchQuery(e.target.value)}
                   aria-label="Search government schemes in natural language"
                 />
-                <Button 
-                  type="submit" 
+                <Button
+                  type="submit"
                   className="absolute right-2 top-1/2 -translate-y-1/2 bg-accent hover:bg-accent/90"
                 >
                   Search
