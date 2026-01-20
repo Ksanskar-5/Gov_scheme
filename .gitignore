@@ -31,9 +31,8 @@ lerna-debug.log*
 *.sqlite3
 server/data/
 
-# Large data files
-*.csv
-updated_data.csv
+# Large data files (keeping updated_data.csv for project sharing)
+# *.csv
 
 # Lock files (optional - uncomment if you want to exclude)
 # bun.lockb
