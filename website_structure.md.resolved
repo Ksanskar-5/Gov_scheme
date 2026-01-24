@@ -1,0 +1,252 @@
+# JanScheme - Website Structure & API Documentation
+
+## 📌 Overview
+**JanScheme** is an AI-powered Government Scheme Advisory Platform that helps Indian citizens discover and apply for government schemes based on their profile.
+
+---
+
+## 🖥️ Frontend Pages
+
+| Route | Page | Description | Auth Required |
+|-------|------|-------------|---------------|
+| `/` | Home | Landing page with hero, stats, featured schemes | ❌ |
+| `/login` | Login | User authentication (login/signup) | ❌ |
+| `/search` | Search Schemes | Browse & filter all schemes | ❌ |
+| `/scheme/:id` | Scheme Detail | Full scheme info, eligibility check | ❌ |
+| `/dashboard` | User Dashboard | Personalized recommendations, saved schemes | ✅ |
+| `/profile` | User Profile | Edit profile details for better matching | ✅ |
+| `/my-schemes` | My Schemes | Track saved/applied schemes | ✅ |
+| `/admin` | Admin Dashboard | Manage schemes, users, analytics | ✅ (Admin) |
+
+---
+
+## 🔐 Authentication API (`/api/auth`)
+
+| Method | Endpoint | Description | Auth |
+|--------|----------|-------------|------|
+| `POST` | `/register` | Register new user | ❌ |
+| `POST` | `/login` | Login & get JWT token | ❌ |
+| `GET` | `/me` | Get current user & profile | ✅ |
+| `POST` | `/change-password` | Update password | ✅ |
+| `POST` | `/verify` | Verify token validity | ✅ |
+
+### Register
+```json
+POST /api/auth/register
+{
+  "email": "user@example.com",
+  "password": "password123",
+  "name": "John Doe" // optional
+}
+```
+
+### Login
+```json
+POST /api/auth/login
+{
+  "email": "user@example.com",
+  "password": "password123"
+}
+// Returns: { user, token, profileId, profile }
+```
+
+---
+
+## 📋 Schemes API (`/api/schemes`)
+
+| Method | Endpoint | Description | Auth |
+|--------|----------|-------------|------|
+| `GET` | `/` | List all schemes (paginated) | ❌ |
+| `GET` | `/stats` | Get scheme statistics | ❌ |
+| `GET` | `/filters` | Get filter options (categories, states, tags) | ❌ |
+| `GET` | `/search` | Search with filters | ❌ |
+| `GET` | `/:idOrSlug` | Get scheme by ID or slug | ❌ |
+| `POST` | `/:id/check-eligibility` | Check eligibility for scheme | ❌ |
+
+### Search Query Parameters
+```
+GET /api/schemes/search?q=education&category=Education&state=Maharashtra&level=Central&page=1&limit=20
+```
+
+### Check Eligibility
+```json
+POST /api/schemes/5/check-eligibility
+{
+  "age": 25,
+  "gender": "male",
+  "state": "Maharashtra",
+  "incomeRange": "2.5lakh_5lakh",
+  "category": "ews",
+  "isStudent": true
+}
+```
+
+---
+
+## 👤 User API (`/api/users`)
+
+| Method | Endpoint | Description | Auth |
+|--------|----------|-------------|------|
+| `POST` | `/profile` | Create user profile | ❌ |
+| `GET` | `/:id/profile` | Get user profile | ❌ |
+| `PUT` | `/:id/profile` | Update user profile | ❌ |
+| `DELETE` | `/:id/profile` | Delete user profile | ❌ |
+| `GET` | `/:id/schemes` | Get user's saved schemes | ❌ |
+| `POST` | `/:id/schemes/:schemeId` | Save a scheme | ❌ |
+| `PUT` | `/:id/schemes/:schemeId` | Update scheme status | ❌ |
+| `DELETE` | `/:id/schemes/:schemeId` | Remove saved scheme | ❌ |
+| `GET` | `/:id/recommendations` | Get personalized recommendations | ❌ |
+
+### User Profile Fields
+```json
+{
+  "name": "Sanskar Kotalwar",
+  "age": 20,
+  "gender": "male",
+  "state": "Maharashtra",
+  "district": "Parbhani",
+  "incomeRange": "5lakh_10lakh",
+  "profession": "Student",
+  "category": "ews",
+  "isDisabled": false,
+  "isMinority": false,
+  "isBPL": false,
+  "isStudent": true,
+  "isFarmer": false,
+  "isBusinessOwner": false,
+  "isWorker": false,
+  "isWidow": false,
+  "isSeniorCitizen": false,
+  "educationLevel": "graduate",
+  "employmentStatus": "student"
+}
+```
+
+### Scheme Status Values
+- `saved` - Scheme bookmarked
+- `applied` - Application submitted
+- `completed` - Benefit received
+- `rejected` - Application rejected
+
+---
+
+## 🔍 Smart Search API (`/api/search`)
+
+| Method | Endpoint | Description | Auth |
+|--------|----------|-------------|------|
+| `POST` | `/smart` | AI-powered natural language search | ❌ |
+| `POST` | `/recommendations` | Get personalized recommendations | ❌ |
+| `GET` | `/category/:category` | Search by category | ❌ |
+| `GET` | `/life-event/:event` | Search by life event | ❌ |
+| `GET` | `/life-events` | List supported life events | ❌ |
+
+### Smart Search
+```json
+POST /api/search/smart
+{
+  "query": "scholarships for engineering students from poor families",
+  "userProfile": {
+    "age": 20,
+    "state": "Maharashtra",
+    "isStudent": true,
+    "isBPL": true
+  }
+}
+```
+
+### Life Events
+- `death_in_family`, `marriage`, `childbirth`
+- `education_start`, `job_loss`, `starting_business`
+- `retirement`, `disability`, `natural_disaster`, `crop_loss`
+
+---
+
+## 💬 Chat API (`/api/chat`)
+
+| Method | Endpoint | Description | Auth |
+|--------|----------|-------------|------|
+| `POST` | `/` | Send chat message to AI assistant | ❌ |
+| `GET` | `/status` | Check AI availability | ❌ |
+| `GET` | `/suggestions` | Get context-aware suggestions | ❌ |
+
+### Chat Message
+```json
+POST /api/chat
+{
+  "message": "What schemes am I eligible for?",
+  "context": {
+    "currentSchemeId": 5,
+    "currentPage": "scheme-detail",
+    "userProfile": { ... },
+    "conversationHistory": [ ... ]
+  }
+}
+```
+
+---
+
+## 🛡️ Admin API (`/api/admin`)
+
+> All admin routes require admin authentication
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/schemes` | Create new scheme |
+| `PUT` | `/schemes/:id` | Update scheme |
+| `DELETE` | `/schemes/:id` | Delete scheme |
+| `GET` | `/users` | List all users |
+| `PUT` | `/users/:id/role` | Update user role |
+| `PUT` | `/users/:id/deactivate` | Deactivate user |
+| `PUT` | `/users/:id/activate` | Activate user |
+| `GET` | `/analytics` | Get platform analytics |
+
+---
+
+## 🗄️ Database Schema
+
+### Tables
+| Table | Description |
+|-------|-------------|
+| `auth_users` | User authentication (email, password, role) |
+| `user_profiles` | User profile details |
+| `schemes` | Government schemes |
+| `user_schemes` | User's saved/applied schemes |
+| `scheme_keywords` | Keywords for search |
+| `schemes_fts` | Full-text search index |
+
+### Key Relationships
+```
+auth_users (1) ─── (1) user_profiles
+user_profiles (1) ─── (N) user_schemes
+schemes (1) ─── (N) user_schemes
+schemes (1) ─── (N) scheme_keywords
+```
+
+---
+
+## 🚀 Running the Project
+
+```bash
+# Terminal 1: Backend
+cd server
+npm install
+npm run dev  # Runs on http://localhost:3001
+
+# Terminal 2: Frontend
+npm install
+npm run dev  # Runs on http://localhost:8080
+```
+
+---
+
+## 🔧 Environment Variables
+
+### Server (`.env`)
+```env
+PORT=3001
+NODE_ENV=development
+DATABASE_PATH=./data/schemes.db
+JWT_SECRET=your-secret-key
+GEMINI_API_KEY=your-gemini-key
+FRONTEND_URL=http://localhost:8080
+```
