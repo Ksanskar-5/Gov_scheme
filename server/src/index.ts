@@ -12,6 +12,8 @@ import schemesRouter from './routes/schemes.js';
 import searchRouter from './routes/search.js';
 import usersRouter from './routes/users.js';
 import chatRouter from './routes/chat.js';
+import authRouter from './routes/auth.js';
+import adminRouter from './routes/admin.js';
 import {
     errorHandler,
     notFoundHandler,
@@ -93,6 +95,8 @@ app.use('/api/schemes', schemesRouter);
 app.use('/api/search', searchRouter);
 app.use('/api/users', usersRouter);
 app.use('/api/chat', chatRouter);
+app.use('/api/auth', authRouter);
+app.use('/api/admin', adminRouter);
 
 // ============================================
 // Error Handling
@@ -120,6 +124,10 @@ app.listen(PORT, () => {
     console.log(`   GET  /api/schemes/search  - Search schemes`);
     console.log(`   POST /api/search/smart    - AI-powered search`);
     console.log(`   POST /api/chat            - Chat with assistant`);
+    console.log(`   POST /api/auth/register   - Register new user`);
+    console.log(`   POST /api/auth/login      - Login user`);
+    console.log(`   GET  /api/auth/me         - Get current user`);
+    console.log(`   *    /api/admin/*         - Admin operations (protected)`);
     console.log('');
     console.log(`🌐 Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:5173'}`);
     console.log('');

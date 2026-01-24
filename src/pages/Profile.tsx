@@ -1,13 +1,14 @@
-import { useState } from "react";
-import { 
-  User, 
-  MapPin, 
-  Briefcase, 
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import {
+  User,
+  MapPin,
+  Briefcase,
   IndianRupee,
   HelpCircle,
   Save,
   CheckCircle2,
-  RefreshCw
+  LogOut
 } from "lucide-react";
 import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
@@ -27,8 +28,11 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Progress } from "@/components/ui/progress";
+import { Checkbox } from "@/components/ui/checkbox";
 import { states } from "@/data/mockSchemes";
 import { toast } from "sonner";
+import { useAuth } from "@/context/authContext";
+import { getUserProfile, updateUserProfile, createUserProfile } from "@/lib/api";
 
 const professions = [
   "Farmer",
@@ -43,25 +47,46 @@ const professions = [
 ];
 
 const incomeRanges = [
-  "Below ₹1 lakh",
-  "₹1-3 lakh",
-  "₹3-5 lakh",
-  "₹5-8 lakh",
-  "₹8-12 lakh",
-  "Above ₹12 lakh"
+  { value: "below_1lakh", label: "Below ₹1 lakh" },
+  { value: "1lakh_2.5lakh", label: "₹1-2.5 lakh" },
+  { value: "2.5lakh_5lakh", label: "₹2.5-5 lakh" },
+  { value: "5lakh_10lakh", label: "₹5-10 lakh" },
+  { value: "above_10lakh", label: "Above ₹10 lakh" }
 ];
 
 const categories = [
-  "General",
-  "OBC",
-  "SC",
-  "ST",
-  "EWS",
-  "Prefer not to say"
+  { value: "general", label: "General" },
+  { value: "obc", label: "OBC" },
+  { value: "sc", label: "SC" },
+  { value: "st", label: "ST" },
+  { value: "ews", label: "EWS" }
 ];
 
+interface FormData {
+  fullName: string;
+  age: string;
+  gender: string;
+  state: string;
+  district: string;
+  profession: string;
+  incomeRange: string;
+  category: string;
+  isDisabled: boolean;
+  isMinority: boolean;
+  isBPL: boolean;
+  isStudent: boolean;
+  isFarmer: boolean;
+  isBusinessOwner: boolean;
+  isWorker: boolean;
+  isWidow: boolean;
+  isSeniorCitizen: boolean;
+}
+
 export default function Profile() {
-  const [formData, setFormData] = useState({
+  const navigate = useNavigate();
+  const { isLoggedIn, isLoading: authLoading, user, profileId, logout, refreshProfile } = useAuth();
+
+  const [formData, setFormData] = useState<FormData>({
     fullName: "",
     age: "",
     gender: "",
@@ -69,44 +94,173 @@ export default function Profile() {
     district: "",
     profession: "",
     incomeRange: "",
-    category: ""
+    category: "",
+    isDisabled: false,
+    isMinority: false,
+    isBPL: false,
+    isStudent: false,
+    isFarmer: false,
+    isBusinessOwner: false,
+    isWorker: false,
+    isWidow: false,
+    isSeniorCitizen: false
   });
 
   const [isSaving, setIsSaving] = useState(false);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
+
+  // Redirect if not logged in
+  useEffect(() => {
+    if (!authLoading && !isLoggedIn) {
+      navigate("/login");
+    }
+  }, [authLoading, isLoggedIn, navigate]);
+
+  // Load profile data on mount
+  useEffect(() => {
+    const loadProfile = async () => {
+      if (profileId) {
+        try {
+          const result = await getUserProfile(profileId);
+          if (result.success && result.data) {
+            const profile = result.data;
+            setFormData({
+              fullName: profile.name || "",
+              age: profile.age?.toString() || "",
+              gender: profile.gender || "",
+              state: profile.state || "",
+              district: profile.district || "",
+              profession: profile.profession || "",
+              incomeRange: profile.incomeRange || "",
+              category: profile.category || "",
+              isDisabled: profile.isDisabled || false,
+              isMinority: profile.isMinority || false,
+              isBPL: profile.isBPL || false,
+              isStudent: profile.isStudent || false,
+              isFarmer: profile.isFarmer || false,
+              isBusinessOwner: profile.isBusinessOwner || false,
+              isWorker: profile.isWorker || false,
+              isWidow: profile.isWidow || false,
+              isSeniorCitizen: profile.isSeniorCitizen || false
+            });
+          }
+        } catch (error) {
+          console.error("Error loading profile:", error);
+        }
+      }
+      setIsLoadingProfile(false);
+    };
+
+    if (!authLoading && isLoggedIn) {
+      loadProfile();
+    }
+  }, [profileId, authLoading, isLoggedIn]);
 
   const calculateCompleteness = () => {
-    const fields = Object.values(formData);
-    const filled = fields.filter(v => v !== "").length;
-    return Math.round((filled / fields.length) * 100);
+    const requiredFields = [
+      formData.fullName,
+      formData.age,
+      formData.gender,
+      formData.state,
+      formData.profession,
+      formData.incomeRange,
+      formData.category
+    ];
+    const filled = requiredFields.filter(v => v !== "").length;
+    return Math.round((filled / requiredFields.length) * 100);
   };
 
-  const handleChange = (field: string, value: string) => {
+  const handleChange = (field: keyof FormData, value: string | boolean) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
   const handleSave = async () => {
     setIsSaving(true);
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    setIsSaving(false);
-    toast.success("Profile saved successfully!", {
-      description: "Your eligibility will be recalculated."
-    });
+    try {
+      const profilePayload = {
+        name: formData.fullName,
+        age: formData.age ? parseInt(formData.age) : undefined,
+        gender: formData.gender as 'male' | 'female' | 'other' | undefined,
+        state: formData.state,
+        district: formData.district,
+        profession: formData.profession,
+        incomeRange: formData.incomeRange,
+        category: formData.category as 'general' | 'obc' | 'sc' | 'st' | 'ews' | undefined,
+        isDisabled: formData.isDisabled,
+        isMinority: formData.isMinority,
+        isBPL: formData.isBPL,
+        isStudent: formData.isStudent,
+        isFarmer: formData.isFarmer,
+        isBusinessOwner: formData.isBusinessOwner,
+        isWorker: formData.isWorker,
+        isWidow: formData.isWidow,
+        isSeniorCitizen: formData.isSeniorCitizen
+      };
+
+      let result;
+      if (profileId) {
+        result = await updateUserProfile(profileId, profilePayload);
+      } else {
+        result = await createUserProfile(profilePayload);
+      }
+
+      if (result.success) {
+        toast.success("Profile saved successfully!", {
+          description: "Your eligibility will be recalculated."
+        });
+        await refreshProfile();
+      } else {
+        toast.error(result.error || "Failed to save profile");
+      }
+    } catch (error) {
+      toast.error("An error occurred while saving profile");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleLogout = () => {
+    logout();
+    toast.success("Logged out successfully");
+    navigate("/");
   };
 
   const completeness = calculateCompleteness();
+
+  if (authLoading || isLoadingProfile) {
+    return (
+      <Layout>
+        <div className="container-gov section-padding max-w-4xl">
+          <div className="flex items-center justify-center py-20">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-accent"></div>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout>
       <div className="container-gov section-padding max-w-4xl">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-2xl md:text-3xl font-bold text-foreground mb-2">
-            Your Profile
-          </h1>
-          <p className="text-muted-foreground">
-            Complete your profile for accurate scheme recommendations. Your data is private and secure.
-          </p>
+        <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold text-foreground mb-2">
+              Your Profile
+            </h1>
+            <p className="text-muted-foreground">
+              Complete your profile for accurate scheme recommendations.
+            </p>
+            {user && (
+              <p className="text-sm text-muted-foreground mt-1">
+                Logged in as: <span className="font-medium text-foreground">{user.email}</span>
+              </p>
+            )}
+          </div>
+          <Button variant="outline" onClick={handleLogout} className="self-start sm:self-auto">
+            <LogOut className="h-4 w-4 mr-2" />
+            Logout
+          </Button>
         </div>
 
         {/* Progress Card */}
@@ -116,8 +270,8 @@ export default function Profile() {
               <div>
                 <h3 className="font-semibold text-foreground">Profile Completeness</h3>
                 <p className="text-sm text-muted-foreground">
-                  {completeness === 100 
-                    ? "Great! Your profile is complete." 
+                  {completeness === 100
+                    ? "Great! Your profile is complete."
                     : "Complete your profile for better matches"
                   }
                 </p>
@@ -163,16 +317,19 @@ export default function Profile() {
                     id="age"
                     type="number"
                     placeholder="Your age"
-                    min="1"
-                    max="120"
                     value={formData.age}
                     onChange={(e) => handleChange("age", e.target.value)}
+                    min="1"
+                    max="120"
                   />
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="gender">Gender</Label>
-                  <Select value={formData.gender} onValueChange={(v) => handleChange("gender", v)}>
+                  <Select
+                    value={formData.gender}
+                    onValueChange={(value) => handleChange("gender", value)}
+                  >
                     <SelectTrigger id="gender">
                       <SelectValue placeholder="Select gender" />
                     </SelectTrigger>
@@ -180,32 +337,32 @@ export default function Profile() {
                       <SelectItem value="male">Male</SelectItem>
                       <SelectItem value="female">Female</SelectItem>
                       <SelectItem value="other">Other</SelectItem>
-                      <SelectItem value="prefer-not">Prefer not to say</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
                 <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Label htmlFor="category">Category / Caste</Label>
+                  <Label htmlFor="category" className="flex items-center gap-1">
+                    Category
                     <Tooltip>
-                      <TooltipTrigger>
-                        <HelpCircle className="h-4 w-4 text-muted-foreground" />
+                      <TooltipTrigger asChild>
+                        <HelpCircle className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
                       </TooltipTrigger>
-                      <TooltipContent className="max-w-xs">
-                        <p>This helps identify schemes specifically designed for your community. Optional but recommended.</p>
+                      <TooltipContent>
+                        <p className="max-w-xs">Many schemes have reservations based on category</p>
                       </TooltipContent>
                     </Tooltip>
-                  </div>
-                  <Select value={formData.category} onValueChange={(v) => handleChange("category", v)}>
+                  </Label>
+                  <Select
+                    value={formData.category}
+                    onValueChange={(value) => handleChange("category", value)}
+                  >
                     <SelectTrigger id="category">
                       <SelectValue placeholder="Select category" />
                     </SelectTrigger>
                     <SelectContent>
-                      {categories.map((cat) => (
-                        <SelectItem key={cat} value={cat.toLowerCase().replace(/\s/g, '-')}>
-                          {cat}
-                        </SelectItem>
+                      {categories.map(cat => (
+                        <SelectItem key={cat.value} value={cat.value}>{cat.label}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -221,28 +378,29 @@ export default function Profile() {
                   Location
                 </CardTitle>
                 <CardDescription>
-                  State-specific schemes need your location
+                  State and district information for state-specific schemes
                 </CardDescription>
               </CardHeader>
               <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <Label htmlFor="state">State</Label>
-                  <Select value={formData.state} onValueChange={(v) => handleChange("state", v)}>
+                  <Select
+                    value={formData.state}
+                    onValueChange={(value) => handleChange("state", value)}
+                  >
                     <SelectTrigger id="state">
                       <SelectValue placeholder="Select state" />
                     </SelectTrigger>
                     <SelectContent>
-                      {states.filter(s => s !== "All India").map((state) => (
-                        <SelectItem key={state} value={state.toLowerCase().replace(/\s/g, '-')}>
-                          {state}
-                        </SelectItem>
+                      {states.map(state => (
+                        <SelectItem key={state} value={state}>{state}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="district">District</Label>
+                  <Label htmlFor="district">District (Optional)</Label>
                   <Input
                     id="district"
                     placeholder="Enter your district"
@@ -253,55 +411,50 @@ export default function Profile() {
               </CardContent>
             </Card>
 
-            {/* Employment & Income */}
+            {/* Occupation & Income */}
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
                   <Briefcase className="h-5 w-5" />
-                  Employment & Income
+                  Occupation & Income
                 </CardTitle>
                 <CardDescription>
-                  Many schemes have income-based eligibility
+                  Many schemes are targeted at specific professions or income groups
                 </CardDescription>
               </CardHeader>
               <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <Label htmlFor="profession">Profession</Label>
-                  <Select value={formData.profession} onValueChange={(v) => handleChange("profession", v)}>
+                  <Select
+                    value={formData.profession}
+                    onValueChange={(value) => handleChange("profession", value)}
+                  >
                     <SelectTrigger id="profession">
                       <SelectValue placeholder="Select profession" />
                     </SelectTrigger>
                     <SelectContent>
-                      {professions.map((prof) => (
-                        <SelectItem key={prof} value={prof.toLowerCase().replace(/\s/g, '-')}>
-                          {prof}
-                        </SelectItem>
+                      {professions.map(prof => (
+                        <SelectItem key={prof} value={prof}>{prof}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
 
                 <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Label htmlFor="incomeRange">Annual Family Income</Label>
-                    <Tooltip>
-                      <TooltipTrigger>
-                        <HelpCircle className="h-4 w-4 text-muted-foreground" />
-                      </TooltipTrigger>
-                      <TooltipContent className="max-w-xs">
-                        <p>Total annual income of all earning members in your household. This is crucial for BPL and EWS schemes.</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </div>
-                  <Select value={formData.incomeRange} onValueChange={(v) => handleChange("incomeRange", v)}>
-                    <SelectTrigger id="incomeRange">
-                      <SelectValue placeholder="Select range" />
+                  <Label htmlFor="income" className="flex items-center gap-1">
+                    <IndianRupee className="h-3.5 w-3.5" />
+                    Annual Income
+                  </Label>
+                  <Select
+                    value={formData.incomeRange}
+                    onValueChange={(value) => handleChange("incomeRange", value)}
+                  >
+                    <SelectTrigger id="income">
+                      <SelectValue placeholder="Select income range" />
                     </SelectTrigger>
                     <SelectContent>
-                      {incomeRanges.map((range) => (
-                        <SelectItem key={range} value={range.toLowerCase().replace(/[₹\s]/g, '')}>
-                          {range}
-                        </SelectItem>
+                      {incomeRanges.map(range => (
+                        <SelectItem key={range.value} value={range.value}>{range.label}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -309,35 +462,132 @@ export default function Profile() {
               </CardContent>
             </Card>
 
-            {/* Action Buttons */}
-            <div className="flex flex-col sm:flex-row gap-4 justify-end">
-              <Button 
-                type="button" 
-                variant="outline"
-                onClick={() => window.location.href = '/dashboard'}
-              >
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Re-check Eligibility
-              </Button>
-              <Button 
-                type="submit" 
+            {/* Additional Criteria */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <CheckCircle2 className="h-5 w-5" />
+                  Additional Criteria
+                </CardTitle>
+                <CardDescription>
+                  Select any that apply to get more relevant recommendations
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="isDisabled"
+                      checked={formData.isDisabled}
+                      onCheckedChange={(checked) => handleChange("isDisabled", !!checked)}
+                    />
+                    <label htmlFor="isDisabled" className="text-sm cursor-pointer">
+                      Person with Disability
+                    </label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="isMinority"
+                      checked={formData.isMinority}
+                      onCheckedChange={(checked) => handleChange("isMinority", !!checked)}
+                    />
+                    <label htmlFor="isMinority" className="text-sm cursor-pointer">
+                      Minority Community
+                    </label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="isBPL"
+                      checked={formData.isBPL}
+                      onCheckedChange={(checked) => handleChange("isBPL", !!checked)}
+                    />
+                    <label htmlFor="isBPL" className="text-sm cursor-pointer">
+                      Below Poverty Line (BPL)
+                    </label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="isStudent"
+                      checked={formData.isStudent}
+                      onCheckedChange={(checked) => handleChange("isStudent", !!checked)}
+                    />
+                    <label htmlFor="isStudent" className="text-sm cursor-pointer">
+                      Student
+                    </label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="isFarmer"
+                      checked={formData.isFarmer}
+                      onCheckedChange={(checked) => handleChange("isFarmer", !!checked)}
+                    />
+                    <label htmlFor="isFarmer" className="text-sm cursor-pointer">
+                      Farmer
+                    </label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="isBusinessOwner"
+                      checked={formData.isBusinessOwner}
+                      onCheckedChange={(checked) => handleChange("isBusinessOwner", !!checked)}
+                    />
+                    <label htmlFor="isBusinessOwner" className="text-sm cursor-pointer">
+                      Business Owner
+                    </label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="isWorker"
+                      checked={formData.isWorker}
+                      onCheckedChange={(checked) => handleChange("isWorker", !!checked)}
+                    />
+                    <label htmlFor="isWorker" className="text-sm cursor-pointer">
+                      Daily Wage Worker
+                    </label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="isWidow"
+                      checked={formData.isWidow}
+                      onCheckedChange={(checked) => handleChange("isWidow", !!checked)}
+                    />
+                    <label htmlFor="isWidow" className="text-sm cursor-pointer">
+                      Widow
+                    </label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="isSeniorCitizen"
+                      checked={formData.isSeniorCitizen}
+                      onCheckedChange={(checked) => handleChange("isSeniorCitizen", !!checked)}
+                    />
+                    <label htmlFor="isSeniorCitizen" className="text-sm cursor-pointer">
+                      Senior Citizen (60+)
+                    </label>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Save Button */}
+            <div className="flex justify-end gap-4">
+              <Button
+                type="submit"
                 className="bg-accent hover:bg-accent/90"
                 disabled={isSaving}
               >
-                <Save className="h-4 w-4 mr-2" />
-                {isSaving ? "Saving..." : "Save Profile"}
+                {isSaving ? (
+                  <>Saving...</>
+                ) : (
+                  <>
+                    <Save className="h-4 w-4 mr-2" />
+                    Save Profile
+                  </>
+                )}
               </Button>
             </div>
           </div>
         </form>
-
-        {/* Privacy Notice */}
-        <div className="mt-8 p-4 rounded-lg bg-muted/50 border border-border">
-          <p className="text-sm text-muted-foreground text-center">
-            🔒 Your data is encrypted and never shared with third parties. 
-            We only use it to find relevant government schemes for you.
-          </p>
-        </div>
       </div>
     </Layout>
   );
