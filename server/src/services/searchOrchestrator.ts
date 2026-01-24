@@ -155,7 +155,7 @@ export async function getPersonalizedRecommendations(
             ...scheme,
             eligibilityStatus: eligibility.status,
             matchReasons: eligibility.matchedCriteria,
-            relevanceScore: scheme.relevanceScore,
+            relevanceScore: (scheme as SchemeWithScore).relevanceScore || 0,
         }));
 }
 

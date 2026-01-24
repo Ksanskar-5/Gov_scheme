@@ -11,7 +11,7 @@ const __dirname = path.dirname(__filename);
 // Import Schemes from CSV
 // ============================================
 
-const CSV_PATH = path.join(__dirname, '../../updated_data.csv');
+const CSV_PATH = path.join(__dirname, '../updated_data.csv');
 const DB_PATH = path.join(__dirname, '../data/schemes.db');
 
 console.log('🇮🇳 JanScheme - Scheme Import Tool');

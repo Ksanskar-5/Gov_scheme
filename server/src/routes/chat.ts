@@ -18,7 +18,7 @@ const chatRequestSchema = z.object({
             age: z.number().optional(),
             gender: z.enum(['male', 'female', 'other']).optional(),
             state: z.string().optional(),
-            incomeRange: z.string().optional(),
+            incomeRange: z.enum(['below_1lakh', '1lakh_2.5lakh', '2.5lakh_5lakh', '5lakh_10lakh', 'above_10lakh']).optional(),
             profession: z.string().optional(),
             category: z.enum(['general', 'obc', 'sc', 'st', 'ews']).optional(),
             isDisabled: z.boolean().optional(),

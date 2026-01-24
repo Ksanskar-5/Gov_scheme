@@ -1,4 +1,4 @@
-import Database from 'better-sqlite3';
+import Database, { Database as DatabaseType } from 'better-sqlite3';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -8,16 +8,16 @@ const __dirname = path.dirname(__filename);
 const DATABASE_PATH = process.env.DATABASE_PATH || path.join(__dirname, '../../data/schemes.db');
 
 // Initialize database connection
-const db = new Database(DATABASE_PATH);
+const db: DatabaseType = new Database(DATABASE_PATH);
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 
 // Initialize database schema
 export function initializeDatabase() {
-    console.log('🔧 Initializing database schema...');
+  console.log('🔧 Initializing database schema...');
 
-    // Schemes table
-    db.exec(`
+  // Schemes table
+  db.exec(`
     CREATE TABLE IF NOT EXISTS schemes (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
@@ -41,8 +41,8 @@ export function initializeDatabase() {
     CREATE INDEX IF NOT EXISTS idx_schemes_state ON schemes(state);
   `);
 
-    // User profiles table
-    db.exec(`
+  // User profiles table
+  db.exec(`
     CREATE TABLE IF NOT EXISTS user_profiles (
       id TEXT PRIMARY KEY,
       name TEXT,
@@ -70,8 +70,8 @@ export function initializeDatabase() {
     );
   `);
 
-    // User saved schemes
-    db.exec(`
+  // User saved schemes
+  db.exec(`
     CREATE TABLE IF NOT EXISTS user_schemes (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id TEXT NOT NULL,
@@ -89,8 +89,8 @@ export function initializeDatabase() {
     CREATE INDEX IF NOT EXISTS idx_user_schemes_scheme ON user_schemes(scheme_id);
   `);
 
-    // Scheme embeddings for vector search (simple approach)
-    db.exec(`
+  // Scheme embeddings for vector search (simple approach)
+  db.exec(`
     CREATE TABLE IF NOT EXISTS scheme_keywords (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       scheme_id INTEGER NOT NULL,
@@ -104,8 +104,8 @@ export function initializeDatabase() {
     CREATE INDEX IF NOT EXISTS idx_scheme_keywords_scheme ON scheme_keywords(scheme_id);
   `);
 
-    // Full-text search virtual table
-    db.exec(`
+  // Full-text search virtual table
+  db.exec(`
     CREATE VIRTUAL TABLE IF NOT EXISTS schemes_fts USING fts5(
       name,
       details,
@@ -117,20 +117,20 @@ export function initializeDatabase() {
     );
   `);
 
-    console.log('✅ Database schema initialized');
+  console.log('✅ Database schema initialized');
 }
 
 // Rebuild FTS index
 export function rebuildFtsIndex() {
-    console.log('🔄 Rebuilding full-text search index...');
+  console.log('🔄 Rebuilding full-text search index...');
 
-    db.exec(`
+  db.exec(`
     DELETE FROM schemes_fts;
     INSERT INTO schemes_fts(rowid, name, details, benefits, eligibility, tags)
     SELECT id, name, details, benefits, eligibility, tags FROM schemes;
   `);
 
-    console.log('✅ FTS index rebuilt');
+  console.log('✅ FTS index rebuilt');
 }
 
 export default db;
