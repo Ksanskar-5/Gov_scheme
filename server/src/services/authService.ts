@@ -201,7 +201,8 @@ export function getAuthUserById(id: string): AuthUser | null {
 // ============================================
 
 export function getProfileByAuthUserId(authUserId: string): string | null {
-    const row = db.prepare('SELECT id FROM user_profiles WHERE auth_user_id = ?')
+    // Return the most recently updated profile (the one with actual data)
+    const row = db.prepare('SELECT id FROM user_profiles WHERE auth_user_id = ? ORDER BY updated_at DESC LIMIT 1')
         .get(authUserId) as { id: string } | undefined;
     return row ? row.id : null;
 }
