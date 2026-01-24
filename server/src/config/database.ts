@@ -41,34 +41,71 @@ export function initializeDatabase() {
     CREATE INDEX IF NOT EXISTS idx_schemes_state ON schemes(state);
   `);
 
-  // User profiles table
+  // Auth users table (for login credentials)
   db.exec(`
-    CREATE TABLE IF NOT EXISTS user_profiles (
+    CREATE TABLE IF NOT EXISTS auth_users (
       id TEXT PRIMARY KEY,
-      name TEXT,
-      age INTEGER,
-      gender TEXT,
-      state TEXT,
-      district TEXT,
-      income_range TEXT,
-      profession TEXT,
-      category TEXT,
-      is_disabled INTEGER DEFAULT 0,
-      is_minority INTEGER DEFAULT 0,
-      is_bpl INTEGER DEFAULT 0,
-      is_student INTEGER DEFAULT 0,
-      is_farmer INTEGER DEFAULT 0,
-      is_business_owner INTEGER DEFAULT 0,
-      is_worker INTEGER DEFAULT 0,
-      is_widow INTEGER DEFAULT 0,
-      is_senior_citizen INTEGER DEFAULT 0,
-      family_size INTEGER,
-      education_level TEXT,
-      employment_status TEXT,
+      email TEXT UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL,
+      role TEXT DEFAULT 'user' CHECK(role IN ('user', 'admin')),
+      is_active INTEGER DEFAULT 1,
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now'))
     );
+    
+    CREATE INDEX IF NOT EXISTS idx_auth_users_email ON auth_users(email);
   `);
+
+  // User profiles table - with migration for existing databases
+  // First, check if table exists
+  const profilesTableExists = db.prepare(`
+    SELECT name FROM sqlite_master WHERE type='table' AND name='user_profiles'
+  `).get();
+
+  if (profilesTableExists) {
+    // Check if auth_user_id column exists
+    const columns = db.prepare(`PRAGMA table_info(user_profiles)`).all() as { name: string }[];
+    const hasAuthUserId = columns.some(col => col.name === 'auth_user_id');
+
+    if (!hasAuthUserId) {
+      console.log('📝 Migrating user_profiles table - adding auth_user_id column...');
+      db.exec(`ALTER TABLE user_profiles ADD COLUMN auth_user_id TEXT`);
+    }
+  } else {
+    // Create new table with auth_user_id
+    db.exec(`
+      CREATE TABLE user_profiles (
+        id TEXT PRIMARY KEY,
+        auth_user_id TEXT,
+        name TEXT,
+        age INTEGER,
+        gender TEXT,
+        state TEXT,
+        district TEXT,
+        income_range TEXT,
+        profession TEXT,
+        category TEXT,
+        is_disabled INTEGER DEFAULT 0,
+        is_minority INTEGER DEFAULT 0,
+        is_bpl INTEGER DEFAULT 0,
+        is_student INTEGER DEFAULT 0,
+        is_farmer INTEGER DEFAULT 0,
+        is_business_owner INTEGER DEFAULT 0,
+        is_worker INTEGER DEFAULT 0,
+        is_widow INTEGER DEFAULT 0,
+        is_senior_citizen INTEGER DEFAULT 0,
+        family_size INTEGER,
+        education_level TEXT,
+        employment_status TEXT,
+        created_at TEXT DEFAULT (datetime('now')),
+        updated_at TEXT DEFAULT (datetime('now')),
+        FOREIGN KEY (auth_user_id) REFERENCES auth_users(id)
+      );
+    `);
+  }
+
+  // Create index if not exists
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_user_profiles_auth ON user_profiles(auth_user_id);`);
 
   // User saved schemes
   db.exec(`

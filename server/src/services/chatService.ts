@@ -109,8 +109,14 @@ ${profile.incomeRange ? `Income Range: ${profile.incomeRange}` : ''}
 
         const result = await chat.sendMessage(userMessage);
         return result.response.text();
-    } catch (error) {
+    } catch (error: any) {
         console.error('Gemini API error:', error);
+
+        // Check for common API errors
+        if (error.status === 400 || error.message?.includes('API key expired') || error.message?.includes('API_KEY_INVALID')) {
+            throw new Error('FALLBACK_TRIGGER');
+        }
+
         throw error;
     }
 }
@@ -208,12 +214,22 @@ export async function handleChatMessage(request: ChatRequest): Promise<ChatRespo
                 userProfile: context.userProfile,
             });
         }
-    } catch (error) {
+    } catch (error: any) {
         console.error('Chat error:', error);
-        reply = generateFallbackResponse(message, {
-            scheme: currentScheme,
-            userProfile: context.userProfile,
-        });
+
+        // If explicitly requested fallback or other error
+        if (error.message === 'FALLBACK_TRIGGER' || error.status === 400) {
+            console.log('⚠️ API Key issue or error - Switching to fallback mode');
+            reply = generateFallbackResponse(message, {
+                scheme: currentScheme,
+                userProfile: context.userProfile,
+            });
+            // Add a note about offline mode
+            reply += "\n\n*(Note: I'm currently running in offline mode due to a connection issue with the AI service, but I can still help with basic queries!)*";
+        } else {
+            // General error fallback
+            reply = "I apologize, but I'm having trouble processing your request right now. Please try searching for schemes using the search bar.";
+        }
     }
 
     // Generate suggested actions based on context

@@ -47,18 +47,18 @@ function rowToProfile(row: UserProfileRow): UserProfile {
 // CRUD Operations
 // ============================================
 
-export function createUserProfile(profile: Partial<UserProfile>): UserProfile {
+export function createUserProfile(profile: Partial<UserProfile>, authUserId?: string): UserProfile {
     const id = profile.id || uuidv4();
     const now = new Date().toISOString();
 
     const stmt = db.prepare(`
     INSERT INTO user_profiles (
-      id, name, age, gender, state, district, income_range, profession,
+      id, auth_user_id, name, age, gender, state, district, income_range, profession,
       category, is_disabled, is_minority, is_bpl, is_student, is_farmer,
       is_business_owner, is_worker, is_widow, is_senior_citizen,
       family_size, education_level, employment_status, created_at, updated_at
     ) VALUES (
-      ?, ?, ?, ?, ?, ?, ?, ?,
+      ?, ?, ?, ?, ?, ?, ?, ?, ?,
       ?, ?, ?, ?, ?, ?,
       ?, ?, ?, ?,
       ?, ?, ?, ?, ?
@@ -67,6 +67,7 @@ export function createUserProfile(profile: Partial<UserProfile>): UserProfile {
 
     stmt.run(
         id,
+        authUserId || null,
         profile.name || null,
         profile.age || null,
         profile.gender || null,

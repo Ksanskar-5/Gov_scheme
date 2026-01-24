@@ -96,60 +96,113 @@ export async function getPersonalizedRecommendations(
     // Build search keywords from user profile
     const profileKeywords: string[] = [];
 
+    // Profession-based keywords
     if (userProfile.isFarmer || userProfile.profession?.toLowerCase().includes('farmer')) {
-        profileKeywords.push('farmer', 'agriculture', 'kisan', 'crop');
+        profileKeywords.push('farmer', 'agriculture', 'kisan', 'crop', 'farming');
     }
 
     if (userProfile.isStudent || userProfile.employmentStatus === 'student') {
-        profileKeywords.push('student', 'education', 'scholarship');
+        profileKeywords.push('student', 'education', 'scholarship', 'study', 'college');
     }
 
     if (userProfile.isWorker || userProfile.profession?.toLowerCase().includes('worker')) {
-        profileKeywords.push('worker', 'labour', 'construction');
+        profileKeywords.push('worker', 'labour', 'construction', 'unorganized');
     }
 
     if (userProfile.isBusinessOwner) {
-        profileKeywords.push('business', 'msme', 'entrepreneur', 'loan');
+        profileKeywords.push('business', 'msme', 'entrepreneur', 'loan', 'startup');
     }
 
+    // Special status keywords
     if (userProfile.isWidow) {
-        profileKeywords.push('widow', 'pension', 'assistance');
+        profileKeywords.push('widow', 'pension', 'assistance', 'mahila');
     }
 
     if (userProfile.isSeniorCitizen || (userProfile.age && userProfile.age >= 60)) {
-        profileKeywords.push('senior', 'elderly', 'pension', 'old age');
+        profileKeywords.push('senior', 'elderly', 'pension', 'old age', 'vridha');
     }
 
     if (userProfile.isDisabled) {
-        profileKeywords.push('disabled', 'disability', 'divyang', 'pwd');
+        profileKeywords.push('disabled', 'disability', 'divyang', 'pwd', 'handicapped');
     }
 
     if (userProfile.isBPL) {
-        profileKeywords.push('bpl', 'poverty', 'poor', 'welfare');
+        profileKeywords.push('bpl', 'poverty', 'poor', 'welfare', 'subsidy');
     }
 
+    // Category-based keywords (SC/ST/OBC/EWS)
     if (userProfile.category === 'sc' || userProfile.category === 'st') {
-        profileKeywords.push('sc', 'st', 'scheduled', 'tribal');
+        profileKeywords.push('sc', 'st', 'scheduled', 'tribal', 'caste');
+    }
+
+    if (userProfile.category === 'obc') {
+        profileKeywords.push('obc', 'backward', 'class', 'reservation');
+    }
+
+    if (userProfile.category === 'ews') {
+        profileKeywords.push('ews', 'economically weaker', 'general category');
+    }
+
+    // Gender-based keywords
+    if (userProfile.gender === 'female') {
+        profileKeywords.push('women', 'female', 'mahila', 'girl', 'lady');
+    }
+
+    // Minority status
+    if (userProfile.isMinority) {
+        profileKeywords.push('minority', 'muslim', 'christian', 'sikh', 'buddhist', 'jain', 'parsi');
+    }
+
+    // Income-based keywords
+    if (userProfile.incomeRange === 'below_1lakh' || userProfile.incomeRange === '1lakh_2.5lakh') {
+        profileKeywords.push('low income', 'poor', 'subsidy', 'free', 'assistance');
+    }
+
+    // Age group keywords
+    if (userProfile.age) {
+        if (userProfile.age >= 18 && userProfile.age <= 35) {
+            profileKeywords.push('youth', 'young', 'skill', 'employment');
+        } else if (userProfile.age < 18) {
+            profileKeywords.push('child', 'minor', 'education', 'school');
+        }
+    }
+
+    // Education level keywords
+    if (userProfile.educationLevel) {
+        if (userProfile.educationLevel === 'graduate' || userProfile.educationLevel === 'post_graduate') {
+            profileKeywords.push('graduate', 'higher education', 'research');
+        }
+        if (userProfile.educationLevel === 'below_10th' || userProfile.educationLevel === '10th_pass') {
+            profileKeywords.push('basic education', 'literacy', 'skill training');
+        }
     }
 
     // Default keywords if profile is minimal
     if (profileKeywords.length === 0) {
-        profileKeywords.push('welfare', 'assistance', 'benefit');
+        profileKeywords.push('welfare', 'assistance', 'benefit', 'scheme');
     }
+
+    // Deduplicate keywords
+    const uniqueKeywords = [...new Set(profileKeywords)];
 
     // Search with profile-based keywords
     const searchResult = smartSearch(
-        profileKeywords,
+        uniqueKeywords,
         { state: userProfile.state },
         1,
-        limit * 2 // Get more to filter
+        limit * 3 // Get more to filter properly
     );
 
     // Score by eligibility
     const scoredSchemes = scoreSchemesByEligibility(userProfile, searchResult.data);
 
+    // Filter to only include eligible or possibly eligible schemes
+    const filteredSchemes = scoredSchemes.filter(
+        ({ eligibility }) => eligibility.status === 'eligible' || eligibility.status === 'possibly_eligible'
+    );
+
     // Return top schemes
-    return scoredSchemes
+    return filteredSchemes
         .slice(0, limit)
         .map(({ scheme, eligibility }) => ({
             ...scheme,

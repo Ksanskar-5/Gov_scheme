@@ -12,6 +12,7 @@ import {
 } from '../services/userService.js';
 import { getSchemeById } from '../services/schemeService.js';
 import { getPersonalizedRecommendations } from '../services/searchOrchestrator.js';
+import { authMiddleware, optionalAuthMiddleware, AuthRequest } from '../middleware/authMiddleware.js';
 
 const router = Router();
 
@@ -74,12 +75,13 @@ const schemeStatusSchema = z.object({
 
 /**
  * POST /api/users/profile
- * Create a new user profile
+ * Create a new user profile (requires authentication)
  */
-router.post('/profile', (req, res) => {
+router.post('/profile', authMiddleware, (req: AuthRequest, res) => {
     try {
         const validated = userProfileSchema.parse(req.body);
-        const profile = createUserProfile(validated);
+        const authUserId = req.user?.userId;
+        const profile = createUserProfile(validated, authUserId);
 
         res.status(201).json({
             success: true,

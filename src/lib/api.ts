@@ -294,8 +294,12 @@ export async function getLifeEvents(): Promise<ApiResponse<Array<{
 export async function createUserProfile(
     profile: Partial<UserProfile>
 ): Promise<ApiResponse<UserProfile>> {
+    const token = localStorage.getItem('auth_token');
     return apiRequest<UserProfile>('/users/profile', {
         method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${token}`,
+        },
         body: JSON.stringify(profile),
     });
 }
@@ -409,4 +413,139 @@ export async function checkApiHealth(): Promise<ApiResponse<{
     version: string;
 }>> {
     return apiRequest('/health');
+}
+
+// ============================================
+// Authentication APIs
+// ============================================
+
+export interface AuthUser {
+    id: string;
+    email: string;
+    role: 'user' | 'admin';
+    isActive: boolean;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface LoginResponse {
+    user: AuthUser;
+    token: string;
+    profileId: string | null;
+    profile: UserProfile | null;
+}
+
+export interface RegisterResponse {
+    user: AuthUser;
+    token: string;
+}
+
+export async function login(email: string, password: string): Promise<ApiResponse<LoginResponse>> {
+    return apiRequest<LoginResponse>('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ email, password }),
+    });
+}
+
+export async function register(email: string, password: string, name?: string): Promise<ApiResponse<RegisterResponse>> {
+    return apiRequest<RegisterResponse>('/auth/register', {
+        method: 'POST',
+        body: JSON.stringify({ email, password, name }),
+    });
+}
+
+export async function getCurrentUser(): Promise<ApiResponse<{
+    user: AuthUser;
+    profileId: string | null;
+    profile: UserProfile | null;
+}>> {
+    const token = localStorage.getItem('auth_token');
+    return apiRequest('/auth/me', {
+        headers: {
+            'Authorization': `Bearer ${token}`,
+        },
+    });
+}
+
+export async function verifyToken(): Promise<ApiResponse<{
+    valid: boolean;
+    user: { userId: string; email: string; role: string };
+}>> {
+    const token = localStorage.getItem('auth_token');
+    return apiRequest('/auth/verify', {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${token}`,
+        },
+    });
+}
+
+export async function changePassword(currentPassword: string, newPassword: string): Promise<ApiResponse<void>> {
+    const token = localStorage.getItem('auth_token');
+    return apiRequest('/auth/change-password', {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ currentPassword, newPassword }),
+    });
+}
+
+// ============================================
+// Admin APIs
+// ============================================
+
+export async function adminGetUsers(): Promise<ApiResponse<AuthUser[]>> {
+    const token = localStorage.getItem('auth_token');
+    return apiRequest<AuthUser[]>('/admin/users', {
+        headers: {
+            'Authorization': `Bearer ${token}`,
+        },
+    });
+}
+
+export async function adminGetAnalytics(): Promise<ApiResponse<{
+    schemes: { totalSchemes: number; centralSchemes: number; stateSchemes: number; categories: number };
+    users: { totalUsers: number; admins: number; activeUsers: number };
+    savedSchemes: { totalSaved: number; usersWithSaved: number; saved: number; applied: number; completed: number };
+    topCategories: { category: string; count: number }[];
+}>> {
+    const token = localStorage.getItem('auth_token');
+    return apiRequest('/admin/analytics', {
+        headers: {
+            'Authorization': `Bearer ${token}`,
+        },
+    });
+}
+
+export async function adminCreateScheme(scheme: Partial<Scheme>): Promise<ApiResponse<Scheme>> {
+    const token = localStorage.getItem('auth_token');
+    return apiRequest<Scheme>('/admin/schemes', {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(scheme),
+    });
+}
+
+export async function adminUpdateScheme(id: number, scheme: Partial<Scheme>): Promise<ApiResponse<void>> {
+    const token = localStorage.getItem('auth_token');
+    return apiRequest('/admin/schemes/' + id, {
+        method: 'PUT',
+        headers: {
+            'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(scheme),
+    });
+}
+
+export async function adminDeleteScheme(id: number): Promise<ApiResponse<void>> {
+    const token = localStorage.getItem('auth_token');
+    return apiRequest('/admin/schemes/' + id, {
+        method: 'DELETE',
+        headers: {
+            'Authorization': `Bearer ${token}`,
+        },
+    });
 }
