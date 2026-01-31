@@ -66,63 +66,69 @@ if (process.env.NODE_ENV !== 'production') {
 // Initialize Database
 // ============================================
 
-try {
-    initializeDatabase();
-    console.log('✅ Database initialized');
-} catch (error) {
-    console.error('❌ Failed to initialize database:', error);
-    process.exit(1);
+async function startServer() {
+    try {
+        await initializeDatabase();
+        console.log('✅ Database connected');
+    } catch (error) {
+        console.error('❌ Failed to connect to database:', error);
+        process.exit(1);
+    }
+
+    // ============================================
+    // API Routes
+    // ============================================
+
+    // Health check
+    app.get('/api/health', (_req, res) => {
+        res.json({
+            success: true,
+            message: 'JanScheme API is running',
+            timestamp: new Date().toISOString(),
+            version: '1.0.0',
+            database: 'PostgreSQL (Supabase)',
+        });
+    });
+
+    // Main routes
+    app.use('/api/schemes', schemesRouter);
+    app.use('/api/search', searchRouter);
+    app.use('/api/users', usersRouter);
+    app.use('/api/chat', chatRouter);
+
+    // ============================================
+    // Error Handling
+    // ============================================
+
+    app.use(notFoundHandler);
+    app.use(errorHandler);
+
+    // ============================================
+    // Start Server
+    // ============================================
+
+    app.listen(PORT, () => {
+        console.log('');
+        console.log('🇮🇳 ========================================');
+        console.log('   JanScheme API Server');
+        console.log('   AI Government Scheme Advisory Platform');
+        console.log('   Database: PostgreSQL (Supabase)');
+        console.log('========================================');
+        console.log('');
+        console.log(`🚀 Server running on http://localhost:${PORT}`);
+        console.log(`📚 API Endpoints:`);
+        console.log(`   GET  /api/health          - Health check`);
+        console.log(`   GET  /api/schemes         - List all schemes`);
+        console.log(`   GET  /api/schemes/:id     - Get scheme by ID/slug`);
+        console.log(`   GET  /api/schemes/search  - Search schemes`);
+        console.log(`   POST /api/search/smart    - AI-powered search`);
+        console.log(`   POST /api/chat            - Chat with assistant`);
+        console.log('');
+        console.log(`🌐 Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:5173'}`);
+        console.log('');
+    });
 }
 
-// ============================================
-// API Routes
-// ============================================
-
-// Health check
-app.get('/api/health', (_req, res) => {
-    res.json({
-        success: true,
-        message: 'JanScheme API is running',
-        timestamp: new Date().toISOString(),
-        version: '1.0.0',
-    });
-});
-
-// Main routes
-app.use('/api/schemes', schemesRouter);
-app.use('/api/search', searchRouter);
-app.use('/api/users', usersRouter);
-app.use('/api/chat', chatRouter);
-
-// ============================================
-// Error Handling
-// ============================================
-
-app.use(notFoundHandler);
-app.use(errorHandler);
-
-// ============================================
-// Start Server
-// ============================================
-
-app.listen(PORT, () => {
-    console.log('');
-    console.log('🇮🇳 ========================================');
-    console.log('   JanScheme API Server');
-    console.log('   AI Government Scheme Advisory Platform');
-    console.log('========================================');
-    console.log('');
-    console.log(`🚀 Server running on http://localhost:${PORT}`);
-    console.log(`📚 API Endpoints:`);
-    console.log(`   GET  /api/health          - Health check`);
-    console.log(`   GET  /api/schemes         - List all schemes`);
-    console.log(`   GET  /api/schemes/:id     - Get scheme by ID/slug`);
-    console.log(`   GET  /api/schemes/search  - Search schemes`);
-    console.log(`   POST /api/search/smart    - AI-powered search`);
-    console.log(`   POST /api/chat            - Chat with assistant`);
-    console.log('');
-    console.log(`🌐 Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:5173'}`);
-    console.log('');
-});
+startServer();
 
 export default app;

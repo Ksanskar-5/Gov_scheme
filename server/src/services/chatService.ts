@@ -175,7 +175,7 @@ export async function handleChatMessage(request: ChatRequest): Promise<ChatRespo
     // Get current scheme if available
     let currentScheme: Scheme | undefined;
     if (context.currentSchemeId) {
-        const scheme = getSchemeById(context.currentSchemeId);
+        const scheme = await getSchemeById(context.currentSchemeId);
         if (scheme) currentScheme = scheme;
     }
 
@@ -189,7 +189,7 @@ export async function handleChatMessage(request: ChatRequest): Promise<ChatRespo
         // Extract keywords and search
         const keywords = extractSearchKeywords(message);
         if (keywords.length > 0) {
-            const searchResult = smartSearch(keywords, {}, 1, 5);
+            const searchResult = await smartSearch(keywords, {}, 1, 5);
             suggestedSchemes = searchResult.data;
         }
     }

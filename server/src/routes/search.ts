@@ -149,19 +149,18 @@ router.post('/recommendations', async (req, res) => {
  * GET /api/search/category/:category
  * Search schemes by category
  */
-router.get('/category/:category', (req, res) => {
+router.get('/category/:category', async (req, res) => {
     try {
         const { category } = req.params;
         const page = parseInt(req.query.page as string) || 1;
         const limit = Math.min(parseInt(req.query.limit as string) || 20, 50);
 
-        // Parse user profile from query params if provided
         let userProfile: Partial<UserProfile> | undefined;
         if (req.query.state) {
             userProfile = { state: req.query.state as string };
         }
 
-        const result = searchByCategory(category, userProfile, page, limit);
+        const result = await searchByCategory(category, userProfile, page, limit);
 
         res.json({
             success: true,
@@ -186,7 +185,6 @@ router.get('/life-event/:event', async (req, res) => {
         const page = parseInt(req.query.page as string) || 1;
         const limit = Math.min(parseInt(req.query.limit as string) || 20, 50);
 
-        // Parse user profile from query params
         let userProfile: Partial<UserProfile> | undefined;
         if (req.query.state) {
             userProfile = { state: req.query.state as string };

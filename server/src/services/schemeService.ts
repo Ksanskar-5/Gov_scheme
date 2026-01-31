@@ -1,4 +1,4 @@
-import db from '../config/database.js';
+import pool from '../config/database.js';
 import type {
     Scheme,
     SchemeRow,
@@ -34,20 +34,19 @@ function rowToScheme(row: SchemeRow): Scheme {
 // CRUD Operations
 // ============================================
 
-export function getAllSchemes(page = 1, limit = 20): PaginatedResponse<Scheme> {
+export async function getAllSchemes(page = 1, limit = 20): Promise<PaginatedResponse<Scheme>> {
     const offset = (page - 1) * limit;
 
-    const countResult = db.prepare('SELECT COUNT(*) as total FROM schemes').get() as { total: number };
-    const total = countResult.total;
+    const countResult = await pool.query('SELECT COUNT(*) as total FROM schemes');
+    const total = parseInt(countResult.rows[0].total);
 
-    const rows = db.prepare(`
-    SELECT * FROM schemes 
-    ORDER BY name ASC 
-    LIMIT ? OFFSET ?
-  `).all(limit, offset) as SchemeRow[];
+    const result = await pool.query(
+        `SELECT * FROM schemes ORDER BY name ASC LIMIT $1 OFFSET $2`,
+        [limit, offset]
+    );
 
     return {
-        data: rows.map(rowToScheme),
+        data: result.rows.map(rowToScheme),
         pagination: {
             page,
             limit,
@@ -57,17 +56,17 @@ export function getAllSchemes(page = 1, limit = 20): PaginatedResponse<Scheme> {
     };
 }
 
-export function getSchemeById(id: number): Scheme | null {
-    const row = db.prepare('SELECT * FROM schemes WHERE id = ?').get(id) as SchemeRow | undefined;
-    return row ? rowToScheme(row) : null;
+export async function getSchemeById(id: number): Promise<Scheme | null> {
+    const result = await pool.query('SELECT * FROM schemes WHERE id = $1', [id]);
+    return result.rows[0] ? rowToScheme(result.rows[0]) : null;
 }
 
-export function getSchemeBySlug(slug: string): Scheme | null {
-    const row = db.prepare('SELECT * FROM schemes WHERE slug = ?').get(slug) as SchemeRow | undefined;
-    return row ? rowToScheme(row) : null;
+export async function getSchemeBySlug(slug: string): Promise<Scheme | null> {
+    const result = await pool.query('SELECT * FROM schemes WHERE slug = $1', [slug]);
+    return result.rows[0] ? rowToScheme(result.rows[0]) : null;
 }
 
-export function searchSchemes(query: SearchQuery): PaginatedResponse<Scheme> {
+export async function searchSchemes(query: SearchQuery): Promise<PaginatedResponse<Scheme>> {
     const {
         query: searchText,
         category,
@@ -81,46 +80,51 @@ export function searchSchemes(query: SearchQuery): PaginatedResponse<Scheme> {
     const offset = (page - 1) * limit;
     const conditions: string[] = [];
     const params: (string | number)[] = [];
+    let paramIndex = 1;
 
-    // Full-text search
+    // Full-text search using tsvector
     if (searchText && searchText.trim()) {
-        conditions.push(`
-      id IN (
-        SELECT rowid FROM schemes_fts 
-        WHERE schemes_fts MATCH ?
-      )
-    `);
-        // Escape special FTS characters and create search query
-        const ftsQuery = searchText
+        const searchTerms = searchText
             .replace(/[^\w\s]/g, ' ')
             .split(/\s+/)
             .filter(w => w.length > 2)
-            .map(w => `"${w}"*`)
-            .join(' OR ');
-        params.push(ftsQuery || `"${searchText}"`);
+            .join(' | ');
+
+        if (searchTerms) {
+            conditions.push(`search_vector @@ to_tsquery('english', $${paramIndex})`);
+            params.push(searchTerms);
+            paramIndex++;
+        }
     }
 
     // Category filter
     if (category && category !== 'all') {
-        conditions.push('category LIKE ?');
+        conditions.push(`category ILIKE $${paramIndex}`);
         params.push(`%${category}%`);
+        paramIndex++;
     }
 
     // State filter
     if (state && state !== 'all') {
-        conditions.push('(state = ? OR level = ?)');
+        conditions.push(`(state = $${paramIndex} OR level = $${paramIndex + 1})`);
         params.push(state, 'Central');
+        paramIndex += 2;
     }
 
     // Level filter
     if (level && level !== 'all') {
-        conditions.push('level = ?');
+        conditions.push(`level = $${paramIndex}`);
         params.push(level);
+        paramIndex++;
     }
 
     // Tags filter
     if (tags && tags.length > 0) {
-        const tagConditions = tags.map(() => 'tags LIKE ?');
+        const tagConditions = tags.map(() => {
+            const cond = `tags ILIKE $${paramIndex}`;
+            paramIndex++;
+            return cond;
+        });
         conditions.push(`(${tagConditions.join(' OR ')})`);
         tags.forEach(tag => params.push(`%${tag}%`));
     }
@@ -128,21 +132,21 @@ export function searchSchemes(query: SearchQuery): PaginatedResponse<Scheme> {
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
     // Count query
-    const countSql = `SELECT COUNT(*) as total FROM schemes ${whereClause}`;
-    const countResult = db.prepare(countSql).get(...params) as { total: number };
-    const total = countResult.total;
+    const countResult = await pool.query(
+        `SELECT COUNT(*) as total FROM schemes ${whereClause}`,
+        params
+    );
+    const total = parseInt(countResult.rows[0].total);
 
     // Data query
-    const dataSql = `
-    SELECT * FROM schemes 
-    ${whereClause}
-    ORDER BY name ASC 
-    LIMIT ? OFFSET ?
-  `;
-    const rows = db.prepare(dataSql).all(...params, limit, offset) as SchemeRow[];
+    const dataParams = [...params, limit, offset];
+    const result = await pool.query(
+        `SELECT * FROM schemes ${whereClause} ORDER BY name ASC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
+        dataParams
+    );
 
     return {
-        data: rows.map(rowToScheme),
+        data: result.rows.map(rowToScheme),
         pagination: {
             page,
             limit,
@@ -156,98 +160,110 @@ export function searchSchemes(query: SearchQuery): PaginatedResponse<Scheme> {
 // Smart Search (Keyword-based with scoring)
 // ============================================
 
-export function smartSearch(
+export async function smartSearch(
     keywords: string[],
     filters: Partial<SearchQuery> = {},
     page = 1,
     limit = 20
-): PaginatedResponse<SchemeWithScore> {
+): Promise<PaginatedResponse<SchemeWithScore>> {
     const offset = (page - 1) * limit;
 
     if (keywords.length === 0) {
-        const result = getAllSchemes(page, limit);
+        const result = await getAllSchemes(page, limit);
         return {
             data: result.data.map(s => ({ ...s, relevanceScore: 0 })),
             pagination: result.pagination,
         };
     }
 
-    // Build keyword matching query with scoring
-    const keywordParams = keywords.map(() => '?').join(', ');
-    const keywordConditions = keywords.map(() =>
-        `(LOWER(name) LIKE ? OR LOWER(details) LIKE ? OR LOWER(benefits) LIKE ? OR LOWER(eligibility) LIKE ? OR LOWER(tags) LIKE ?)`
-    ).join(' OR ');
+    const conditions: string[] = [];
+    const params: (string | number)[] = [];
+    let paramIndex = 1;
 
-    const filterConditions: string[] = [];
-    const filterParams: (string | number)[] = [];
+    // Build keyword ILIKE conditions
+    const keywordConditions: string[] = [];
+    keywords.forEach(kw => {
+        const pattern = `%${kw.toLowerCase()}%`;
+        keywordConditions.push(`(
+            LOWER(name) LIKE $${paramIndex} OR 
+            LOWER(details) LIKE $${paramIndex} OR 
+            LOWER(benefits) LIKE $${paramIndex} OR 
+            LOWER(eligibility) LIKE $${paramIndex} OR 
+            LOWER(tags) LIKE $${paramIndex}
+        )`);
+        params.push(pattern);
+        paramIndex++;
+    });
+    conditions.push(`(${keywordConditions.join(' OR ')})`);
 
+    // Add filters
     if (filters.category && filters.category !== 'all') {
-        filterConditions.push('category LIKE ?');
-        filterParams.push(`%${filters.category}%`);
+        conditions.push(`category ILIKE $${paramIndex}`);
+        params.push(`%${filters.category}%`);
+        paramIndex++;
     }
 
     if (filters.state && filters.state !== 'all') {
-        filterConditions.push('(state = ? OR level = ?)');
-        filterParams.push(filters.state, 'Central');
+        conditions.push(`(state = $${paramIndex} OR level = $${paramIndex + 1})`);
+        params.push(filters.state, 'Central');
+        paramIndex += 2;
     }
 
     if (filters.level && filters.level !== 'all') {
-        filterConditions.push('level = ?');
-        filterParams.push(filters.level);
+        conditions.push(`level = $${paramIndex}`);
+        params.push(filters.level);
+        paramIndex++;
     }
 
-    const filterClause = filterConditions.length > 0
-        ? `AND ${filterConditions.join(' AND ')}`
-        : '';
+    const whereClause = `WHERE ${conditions.join(' AND ')}`;
 
-    // Prepare keyword params (each keyword needs 5 params for 5 fields)
-    const allKeywordParams: string[] = [];
+    // Build scoring expression
+    const scoreExprParts: string[] = [];
+    let scoreParamIndex = paramIndex;
     keywords.forEach(kw => {
         const pattern = `%${kw.toLowerCase()}%`;
-        allKeywordParams.push(pattern, pattern, pattern, pattern, pattern);
+        scoreExprParts.push(`
+            CASE WHEN LOWER(name) LIKE $${scoreParamIndex} THEN 10 ELSE 0 END +
+            CASE WHEN LOWER(tags) LIKE $${scoreParamIndex} THEN 8 ELSE 0 END +
+            CASE WHEN LOWER(benefits) LIKE $${scoreParamIndex} THEN 5 ELSE 0 END +
+            CASE WHEN LOWER(eligibility) LIKE $${scoreParamIndex} THEN 5 ELSE 0 END +
+            CASE WHEN LOWER(details) LIKE $${scoreParamIndex} THEN 3 ELSE 0 END
+        `);
+        params.push(pattern);
+        scoreParamIndex++;
     });
+    const scoreExpr = scoreExprParts.join(' + ');
+
+    // Add pagination params
+    params.push(limit, offset);
 
     const sql = `
-    SELECT *,
-    (
-      ${keywords.map((_, i) => `
-        CASE WHEN LOWER(name) LIKE ? THEN 10 ELSE 0 END +
-        CASE WHEN LOWER(tags) LIKE ? THEN 8 ELSE 0 END +
-        CASE WHEN LOWER(benefits) LIKE ? THEN 5 ELSE 0 END +
-        CASE WHEN LOWER(eligibility) LIKE ? THEN 5 ELSE 0 END +
-        CASE WHEN LOWER(details) LIKE ? THEN 3 ELSE 0 END
-      `).join(' + ')}
-    ) as score
-    FROM schemes
-    WHERE (${keywordConditions}) ${filterClause}
-    ORDER BY score DESC, name ASC
-    LIMIT ? OFFSET ?
-  `;
+        SELECT *, (${scoreExpr}) as score
+        FROM schemes
+        ${whereClause}
+        ORDER BY score DESC, name ASC
+        LIMIT $${scoreParamIndex} OFFSET $${scoreParamIndex + 1}
+    `;
 
-    // Build score params (same pattern as keyword params)
-    const scoreParams = [...allKeywordParams];
-    const allParams = [...scoreParams, ...allKeywordParams, ...filterParams, limit, offset];
+    const result = await pool.query(sql, params);
 
-    const rows = db.prepare(sql).all(...allParams) as (SchemeRow & { score: number })[];
-
-    // Count total matching
-    const countSql = `
-    SELECT COUNT(*) as total FROM schemes
-    WHERE (${keywordConditions}) ${filterClause}
-  `;
-    const countParams = [...allKeywordParams, ...filterParams];
-    const countResult = db.prepare(countSql).get(...countParams) as { total: number };
+    // Count query
+    const countParams = params.slice(0, paramIndex - 1);
+    const countResult = await pool.query(
+        `SELECT COUNT(*) as total FROM schemes ${whereClause}`,
+        countParams
+    );
 
     return {
-        data: rows.map(row => ({
+        data: result.rows.map(row => ({
             ...rowToScheme(row),
-            relevanceScore: row.score,
+            relevanceScore: parseInt(row.score) || 0,
         })),
         pagination: {
             page,
             limit,
-            total: countResult.total,
-            totalPages: Math.ceil(countResult.total / limit),
+            total: parseInt(countResult.rows[0].total),
+            totalPages: Math.ceil(parseInt(countResult.rows[0].total) / limit),
         },
     };
 }
@@ -256,49 +272,60 @@ export function smartSearch(
 // Get Unique Values for Filters
 // ============================================
 
-export function getCategories(): string[] {
-    const rows = db.prepare(`
-    SELECT DISTINCT category FROM schemes 
-    WHERE category IS NOT NULL AND category != ''
-    ORDER BY category
-  `).all() as { category: string }[];
-
-    return rows.map(r => r.category);
+export async function getCategories(): Promise<string[]> {
+    const result = await pool.query(`
+        SELECT DISTINCT category FROM schemes 
+        WHERE category IS NOT NULL AND category != ''
+        ORDER BY category
+    `);
+    return result.rows.map(r => r.category);
 }
 
-export function getStates(): string[] {
-    const rows = db.prepare(`
-    SELECT DISTINCT state FROM schemes 
-    WHERE state IS NOT NULL AND state != ''
-    ORDER BY state
-  `).all() as { state: string }[];
-
-    return rows.map(r => r.state);
+export async function getStates(): Promise<string[]> {
+    const result = await pool.query(`
+        SELECT DISTINCT state FROM schemes 
+        WHERE state IS NOT NULL AND state != ''
+        ORDER BY state
+    `);
+    return result.rows.map(r => r.state);
 }
 
-export function getTags(): string[] {
-    const rows = db.prepare('SELECT tags FROM schemes WHERE tags IS NOT NULL').all() as { tags: string }[];
+export async function getTags(): Promise<string[]> {
+    const result = await pool.query('SELECT tags FROM schemes WHERE tags IS NOT NULL');
 
     const tagSet = new Set<string>();
-    rows.forEach(row => {
-        row.tags.split(',').forEach(tag => {
-            const trimmed = tag.trim();
-            if (trimmed) tagSet.add(trimmed);
-        });
+    result.rows.forEach(row => {
+        if (row.tags) {
+            row.tags.split(',').forEach((tag: string) => {
+                const trimmed = tag.trim();
+                if (trimmed) tagSet.add(trimmed);
+            });
+        }
     });
 
     return Array.from(tagSet).sort();
 }
 
-export function getSchemeStats() {
-    const stats = db.prepare(`
-    SELECT 
-      COUNT(*) as total,
-      SUM(CASE WHEN level = 'Central' THEN 1 ELSE 0 END) as central,
-      SUM(CASE WHEN level = 'State' THEN 1 ELSE 0 END) as state,
-      COUNT(DISTINCT category) as categories
-    FROM schemes
-  `).get() as { total: number; central: number; state: number; categories: number };
+export async function getSchemeStats(): Promise<{
+    total: number;
+    central: number;
+    state: number;
+    categories: number;
+}> {
+    const result = await pool.query(`
+        SELECT 
+            COUNT(*) as total,
+            SUM(CASE WHEN level = 'Central' THEN 1 ELSE 0 END) as central,
+            SUM(CASE WHEN level = 'State' THEN 1 ELSE 0 END) as state,
+            COUNT(DISTINCT category) as categories
+        FROM schemes
+    `);
 
-    return stats;
+    const row = result.rows[0];
+    return {
+        total: parseInt(row.total) || 0,
+        central: parseInt(row.central) || 0,
+        state: parseInt(row.state) || 0,
+        categories: parseInt(row.categories) || 0,
+    };
 }
