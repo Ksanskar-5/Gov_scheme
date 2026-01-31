@@ -17,40 +17,63 @@ import { extractSearchKeywords } from './queryParser.js';
 // Context-aware chatbot that helps users understand schemes
 
 let genAI: GoogleGenerativeAI | null = null;
+let isInitialized = false;
 
-// Initialize Gemini client if API key is available
-if (process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== 'your_gemini_api_key_here') {
-    genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+// Lazy initialization - gets called when first needed, after dotenv is loaded
+function getGeminiClient(): GoogleGenerativeAI | null {
+    if (!isInitialized) {
+        isInitialized = true;
+        const apiKey = process.env.GEMINI_API_KEY;
+        console.log(`🔑 API Key from env: ${apiKey ? apiKey.substring(0, 10) + '...' + apiKey.substring(apiKey.length - 4) : 'NOT SET'}`);
+        if (apiKey && apiKey !== 'your_gemini_api_key_here') {
+            genAI = new GoogleGenerativeAI(apiKey);
+            console.log('✅ Gemini AI initialized with API key');
+        } else {
+            console.warn('⚠️ No valid Gemini API key found, using fallback responses');
+        }
+    }
+    return genAI;
 }
 
-// System prompt for the chatbot
-const SYSTEM_PROMPT = `You are JanScheme Assistant, a helpful AI advisor for Indian government welfare schemes.
+// System prompt for the chatbot - OPTIMIZED for concise responses
+const SYSTEM_PROMPT = `You are JanScheme Assistant, an AI advisor for Indian government welfare schemes.
 
-Your role:
-1. Help users understand government schemes in simple, clear language
-2. Explain eligibility criteria and required documents
-3. Guide users through the application process
-4. Answer questions about specific schemes
-5. Suggest relevant schemes based on user queries
+RULES:
+- Keep responses under 150 words
+- Use bullet points for lists
+- Be direct and helpful
+- Never guarantee eligibility
+- Suggest checking official sources for final verification
 
-Guidelines:
-- Use simple, easy-to-understand language
-- Be concise but informative
-- If unsure, say so and suggest the user check official sources
-- Never guarantee eligibility - clarify that final decisions are made by authorities
-- Format responses clearly with bullet points when listing items
-- Be empathetic and helpful
+CAPABILITIES:
+- Explain scheme eligibility, benefits, documents
+- Guide application process
+- Recommend relevant schemes based on user profile
 
-You have access to:
-- Current scheme details (if viewing a scheme)
-- User's profile information (if available)
-- Conversation history
-
-Respond in a friendly, professional manner.`;
+RESPONSE FORMAT:
+- Start with a brief answer
+- Use **bold** for key terms
+- End with a helpful follow-up question or action`;
 
 // ============================================
-// Generate Response with Gemini
+// Generate Response with Gemini (with model fallback)
 // ============================================
+
+// List of models to try in order (fastest/cheapest first)
+const GEMINI_MODELS = [
+    // Latest 2.5 models (verified working)
+    'gemini-2.5-flash',
+    'gemini-2.5-pro',
+    // 2.0 models
+    'gemini-2.0-flash',
+    'gemini-2.0-flash-001',
+    'gemini-2.0-flash-lite-001',
+];
+
+// Track which model is currently being used
+let currentModelIndex = 0;
+let lastRateLimitTime: number | null = null;
+const RATE_LIMIT_COOLDOWN = 60000; // 1 minute cooldown before trying the faster model again
 
 async function generateWithGemini(
     userMessage: string,
@@ -60,11 +83,17 @@ async function generateWithGemini(
         conversationHistory?: { role: string; content: string }[];
     }
 ): Promise<string> {
-    if (!genAI) {
+    const client = getGeminiClient();
+    if (!client) {
         throw new Error('Gemini API not configured');
     }
 
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    // Check if we should try the faster model again after cooldown
+    if (lastRateLimitTime && Date.now() - lastRateLimitTime > RATE_LIMIT_COOLDOWN) {
+        currentModelIndex = 0; // Reset to fastest model
+        lastRateLimitTime = null;
+        console.log('🔄 Cooldown expired, trying faster model again');
+    }
 
     // Build context message
     let contextMessage = SYSTEM_PROMPT + '\n\n';
@@ -98,21 +127,54 @@ ${profile.incomeRange ? `Income Range: ${profile.incomeRange}` : ''}
         parts: [{ text: msg.content }],
     }));
 
-    try {
-        const chat = model.startChat({
-            history: [
-                { role: 'user', parts: [{ text: contextMessage }] },
-                { role: 'model', parts: [{ text: 'I understand. I will help users with government schemes following these guidelines.' }] },
-                ...formattedHistory,
-            ],
-        });
+    // Try models with fallback
+    for (let i = currentModelIndex; i < GEMINI_MODELS.length; i++) {
+        const modelName = GEMINI_MODELS[i];
+        console.log(`🤖 Trying model: ${modelName}`);
 
-        const result = await chat.sendMessage(userMessage);
-        return result.response.text();
-    } catch (error) {
-        console.error('Gemini API error:', error);
-        throw error;
+        try {
+            const model = client.getGenerativeModel({ model: modelName });
+
+            const chat = model.startChat({
+                history: [
+                    { role: 'user', parts: [{ text: contextMessage }] },
+                    { role: 'model', parts: [{ text: 'I understand. I will help users with government schemes following these guidelines.' }] },
+                    ...formattedHistory,
+                ],
+            });
+
+            const result = await chat.sendMessage(userMessage);
+            const response = result.response.text();
+
+            console.log(`✅ Response from ${modelName}`);
+            return response;
+
+        } catch (error: any) {
+            const errorMessage = error?.message || String(error);
+
+            // Check if it's a rate limit error (429) or quota exceeded
+            if (errorMessage.includes('429') ||
+                errorMessage.includes('quota') ||
+                errorMessage.includes('rate limit') ||
+                errorMessage.includes('Resource has been exhausted')) {
+
+                console.warn(`⚠️ Rate limit hit on ${modelName}, trying next model...`);
+                lastRateLimitTime = Date.now();
+                currentModelIndex = i + 1;
+
+                // Continue to next model
+                continue;
+            }
+
+            // For other errors, log and continue to next model
+            console.error(`❌ Error with ${modelName}:`, errorMessage);
+            continue;
+        }
     }
+
+    // All models exhausted
+    console.error('❌ All Gemini models exhausted, using fallback');
+    throw new Error('All Gemini models rate limited');
 }
 
 // ============================================
@@ -196,7 +258,7 @@ export async function handleChatMessage(request: ChatRequest): Promise<ChatRespo
 
     // Try Gemini first, fallback to local response
     try {
-        if (genAI) {
+        if (getGeminiClient()) {
             reply = await generateWithGemini(message, {
                 scheme: currentScheme,
                 userProfile: context.userProfile,
@@ -241,5 +303,5 @@ export async function handleChatMessage(request: ChatRequest): Promise<ChatRespo
 // ============================================
 
 export function isAIAvailable(): boolean {
-    return genAI !== null;
+    return getGeminiClient() !== null;
 }

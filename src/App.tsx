@@ -12,6 +12,12 @@ import MySchemes from "./pages/MySchemes";
 import Login from "./pages/Login";
 import AdminDashboard from "./pages/AdminDashboard";
 import NotFound from "./pages/NotFound";
+import FAQ from "./pages/FAQ";
+import HelpCenter from "./pages/HelpCenter";
+import AboutUs from "./pages/AboutUs";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
+import TermsOfUse from "./pages/TermsOfUse";
+import Disclaimer from "./pages/Disclaimer";
 
 import { AuthProvider } from "./context/AuthContext";
 
