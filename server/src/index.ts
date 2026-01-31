@@ -73,8 +73,8 @@ async function startServer() {
         await initializeDatabase();
         console.log('✅ Database connected');
     } catch (error) {
-        console.error('❌ Failed to connect to database:', error);
-        process.exit(1);
+        console.warn('⚠️ Database connection failed - running in limited mode');
+        console.warn('   Some features may not work without database connection');
     }
 
     // ============================================
