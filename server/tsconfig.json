@@ -18,9 +18,6 @@
         "sourceMap": true,
         "allowSyntheticDefaultImports": true,
         "noEmit": false,
-        "types": [
-            "node"
-        ],
         "paths": {
             "@/*": [
                 "./src/*"
