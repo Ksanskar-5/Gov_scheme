@@ -1,8 +1,13 @@
+import dotenv from 'dotenv';
+// Load env BEFORE anything else to ensure correct DATABASE_URL
+dotenv.config({ override: true });
+
 import pg from 'pg';
 
 const { Pool } = pg;
 
 console.log('📡 DATABASE_URL configured:', process.env.DATABASE_URL ? 'yes' : 'NO - MISSING!');
+console.log('📡 DATABASE_URL value:', process.env.DATABASE_URL?.substring(0, 60) + '...');
 
 // Connection pool for PostgreSQL (Supabase)
 const pool = new Pool({
@@ -10,6 +15,8 @@ const pool = new Pool({
     max: 20,
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 5000,
+    // Explicitly set the search_path to public schema
+    options: '-c search_path=public',
 });
 
 // Test connection on startup

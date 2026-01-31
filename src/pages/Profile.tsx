@@ -1,8 +1,8 @@
-import { useState } from "react";
-import { 
-  User, 
-  MapPin, 
-  Briefcase, 
+import { useState, useEffect } from "react";
+import {
+  User,
+  MapPin,
+  Briefcase,
   IndianRupee,
   HelpCircle,
   Save,
@@ -29,6 +29,8 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { states } from "@/data/mockSchemes";
 import { toast } from "sonner";
+import { useAuth } from "@/context/AuthContext";
+import { getUserProfile, createUserProfile, updateUserProfile } from "@/lib/api";
 
 const professions = [
   "Farmer",
@@ -43,24 +45,24 @@ const professions = [
 ];
 
 const incomeRanges = [
-  "Below ₹1 lakh",
-  "₹1-3 lakh",
-  "₹3-5 lakh",
-  "₹5-8 lakh",
-  "₹8-12 lakh",
-  "Above ₹12 lakh"
+  { label: "Below ₹1 lakh", value: "below_1lakh" },
+  { label: "₹1-2.5 lakh", value: "1lakh_2.5lakh" },
+  { label: "₹2.5-5 lakh", value: "2.5lakh_5lakh" },
+  { label: "₹5-10 lakh", value: "5lakh_10lakh" },
+  { label: "Above ₹10 lakh", value: "above_10lakh" }
 ];
 
 const categories = [
-  "General",
-  "OBC",
-  "SC",
-  "ST",
-  "EWS",
-  "Prefer not to say"
+  { label: "General", value: "general" },
+  { label: "OBC", value: "obc" },
+  { label: "SC", value: "sc" },
+  { label: "ST", value: "st" },
+  { label: "EWS", value: "ews" }
 ];
 
 export default function Profile() {
+  const { user } = useAuth();
+  const [profileExists, setProfileExists] = useState(false);
   const [formData, setFormData] = useState({
     fullName: "",
     age: "",
@@ -73,6 +75,40 @@ export default function Profile() {
   });
 
   const [isSaving, setIsSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Load existing profile on mount
+  useEffect(() => {
+    async function loadProfile() {
+      if (!user?.id) {
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        const response = await getUserProfile(user.id);
+        if (response.success && response.data) {
+          setProfileExists(true);
+          setFormData({
+            fullName: response.data.name || "",
+            age: response.data.age?.toString() || "",
+            gender: response.data.gender || "",
+            state: response.data.state || "",
+            district: response.data.district || "",
+            profession: response.data.profession || "",
+            incomeRange: response.data.incomeRange || "",
+            category: response.data.category || ""
+          });
+        }
+      } catch (error) {
+        console.error("Failed to load profile:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    loadProfile();
+  }, [user?.id]);
 
   const calculateCompleteness = () => {
     const fields = Object.values(formData);
@@ -85,13 +121,48 @@ export default function Profile() {
   };
 
   const handleSave = async () => {
+    if (!user?.id) {
+      toast.error("Please login to save your profile");
+      return;
+    }
+
     setIsSaving(true);
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    setIsSaving(false);
-    toast.success("Profile saved successfully!", {
-      description: "Your eligibility will be recalculated."
-    });
+    try {
+      const profileData = {
+        id: user.id,
+        name: formData.fullName || undefined,
+        age: formData.age ? parseInt(formData.age) : undefined,
+        gender: formData.gender as 'male' | 'female' | 'other' | undefined,
+        state: formData.state || undefined,
+        district: formData.district || undefined,
+        profession: formData.profession || undefined,
+        incomeRange: formData.incomeRange || undefined,
+        category: formData.category as 'general' | 'obc' | 'sc' | 'st' | 'ews' | undefined,
+      };
+
+      let response;
+      if (profileExists) {
+        response = await updateUserProfile(user.id, profileData);
+      } else {
+        response = await createUserProfile(profileData);
+      }
+
+      if (response.success) {
+        setProfileExists(true);
+        toast.success("Profile saved successfully!", {
+          description: "Your eligibility will be recalculated."
+        });
+      } else {
+        toast.error("Failed to save profile", {
+          description: response.error || "Please try again."
+        });
+      }
+    } catch (error) {
+      console.error("Error saving profile:", error);
+      toast.error("Failed to save profile");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const completeness = calculateCompleteness();
@@ -116,8 +187,8 @@ export default function Profile() {
               <div>
                 <h3 className="font-semibold text-foreground">Profile Completeness</h3>
                 <p className="text-sm text-muted-foreground">
-                  {completeness === 100 
-                    ? "Great! Your profile is complete." 
+                  {completeness === 100
+                    ? "Great! Your profile is complete."
                     : "Complete your profile for better matches"
                   }
                 </p>
@@ -180,7 +251,6 @@ export default function Profile() {
                       <SelectItem value="male">Male</SelectItem>
                       <SelectItem value="female">Female</SelectItem>
                       <SelectItem value="other">Other</SelectItem>
-                      <SelectItem value="prefer-not">Prefer not to say</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -203,8 +273,8 @@ export default function Profile() {
                     </SelectTrigger>
                     <SelectContent>
                       {categories.map((cat) => (
-                        <SelectItem key={cat} value={cat.toLowerCase().replace(/\s/g, '-')}>
-                          {cat}
+                        <SelectItem key={cat.value} value={cat.value}>
+                          {cat.label}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -233,7 +303,7 @@ export default function Profile() {
                     </SelectTrigger>
                     <SelectContent>
                       {states.filter(s => s !== "All India").map((state) => (
-                        <SelectItem key={state} value={state.toLowerCase().replace(/\s/g, '-')}>
+                        <SelectItem key={state} value={state}>
                           {state}
                         </SelectItem>
                       ))}
@@ -273,7 +343,7 @@ export default function Profile() {
                     </SelectTrigger>
                     <SelectContent>
                       {professions.map((prof) => (
-                        <SelectItem key={prof} value={prof.toLowerCase().replace(/\s/g, '-')}>
+                        <SelectItem key={prof} value={prof}>
                           {prof}
                         </SelectItem>
                       ))}
@@ -299,8 +369,8 @@ export default function Profile() {
                     </SelectTrigger>
                     <SelectContent>
                       {incomeRanges.map((range) => (
-                        <SelectItem key={range} value={range.toLowerCase().replace(/[₹\s]/g, '')}>
-                          {range}
+                        <SelectItem key={range.value} value={range.value}>
+                          {range.label}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -311,16 +381,16 @@ export default function Profile() {
 
             {/* Action Buttons */}
             <div className="flex flex-col sm:flex-row gap-4 justify-end">
-              <Button 
-                type="button" 
+              <Button
+                type="button"
                 variant="outline"
                 onClick={() => window.location.href = '/dashboard'}
               >
                 <RefreshCw className="h-4 w-4 mr-2" />
                 Re-check Eligibility
               </Button>
-              <Button 
-                type="submit" 
+              <Button
+                type="submit"
                 className="bg-accent hover:bg-accent/90"
                 disabled={isSaving}
               >
@@ -334,7 +404,7 @@ export default function Profile() {
         {/* Privacy Notice */}
         <div className="mt-8 p-4 rounded-lg bg-muted/50 border border-border">
           <p className="text-sm text-muted-foreground text-center">
-            🔒 Your data is encrypted and never shared with third parties. 
+            🔒 Your data is encrypted and never shared with third parties.
             We only use it to find relevant government schemes for you.
           </p>
         </div>

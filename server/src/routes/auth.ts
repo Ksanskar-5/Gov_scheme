@@ -99,10 +99,10 @@ router.post('/register', async (req: Request, res: Response) => {
             user: result.user,
             token: result.token,
         });
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('Registration error:', error);
 
-        if (error.message === 'Email already registered') {
+        if (error instanceof Error && error.message === 'Email already registered') {
             res.status(409).json({ error: error.message });
             return;
         }
@@ -135,10 +135,10 @@ router.post('/login', async (req: Request, res: Response) => {
             user: result.user,
             token: result.token,
         });
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('Login error:', error);
 
-        if (error.message === 'Invalid email or password') {
+        if (error instanceof Error && error.message === 'Invalid email or password') {
             res.status(401).json({ error: error.message });
             return;
         }

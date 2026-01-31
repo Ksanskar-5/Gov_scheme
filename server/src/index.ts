@@ -1,6 +1,7 @@
 import dotenv from 'dotenv';
 // Load environment variables FIRST before any other imports
-dotenv.config();
+// Use override to ensure .env values take precedence over system env vars
+dotenv.config({ override: true });
 console.log('🔧 ENV loaded. DATABASE_URL:', process.env.DATABASE_URL ? 'SET' : 'NOT SET');
 
 import express from 'express';
