@@ -1,17 +1,19 @@
+import dotenv from 'dotenv';
+// Load environment variables FIRST before any other imports
+dotenv.config();
+console.log('🔧 ENV loaded. DATABASE_URL:', process.env.DATABASE_URL ? 'SET' : 'NOT SET');
+
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
-import dotenv from 'dotenv';
-
-// Load environment variables
-dotenv.config();
 
 import { initializeDatabase } from './config/database.js';
 import schemesRouter from './routes/schemes.js';
 import searchRouter from './routes/search.js';
 import usersRouter from './routes/users.js';
 import chatRouter from './routes/chat.js';
+import authRouter from './routes/auth.js';
 import {
     errorHandler,
     notFoundHandler,
@@ -95,6 +97,7 @@ async function startServer() {
     app.use('/api/search', searchRouter);
     app.use('/api/users', usersRouter);
     app.use('/api/chat', chatRouter);
+    app.use('/api/auth', authRouter);
 
     // ============================================
     // Error Handling

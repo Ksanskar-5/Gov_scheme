@@ -7,6 +7,20 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- =============================================
+-- Users Table (Authentication)
+-- =============================================
+CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY DEFAULT uuid_generate_v4()::TEXT,
+    email TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    name TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+
+-- =============================================
 -- Schemes Table
 -- =============================================
 CREATE TABLE IF NOT EXISTS schemes (

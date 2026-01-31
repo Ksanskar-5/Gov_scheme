@@ -1,17 +1,15 @@
 import pg from 'pg';
-import dotenv from 'dotenv';
-
-dotenv.config();
 
 const { Pool } = pg;
+
+console.log('📡 DATABASE_URL configured:', process.env.DATABASE_URL ? 'yes' : 'NO - MISSING!');
 
 // Connection pool for PostgreSQL (Supabase)
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
-    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
     max: 20,
     idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 2000,
+    connectionTimeoutMillis: 5000,
 });
 
 // Test connection on startup
