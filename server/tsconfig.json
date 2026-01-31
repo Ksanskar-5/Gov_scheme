@@ -8,16 +8,19 @@
         ],
         "outDir": "./dist",
         "rootDir": "./src",
-        "strict": true,
+        "strict": false,
+        "noImplicitAny": false,
         "esModuleInterop": true,
         "skipLibCheck": true,
         "forceConsistentCasingInFileNames": true,
         "resolveJsonModule": true,
-        "declaration": true,
-        "declarationMap": true,
+        "declaration": false,
         "sourceMap": true,
         "allowSyntheticDefaultImports": true,
         "noEmit": false,
+        "types": [
+            "node"
+        ],
         "paths": {
             "@/*": [
                 "./src/*"

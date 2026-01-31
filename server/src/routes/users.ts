@@ -19,22 +19,27 @@ const router = Router();
 // Validation Schemas
 // ============================================
 
+// Helper to convert empty strings to undefined
+const emptyToUndefined = z.string().transform(v => v === '' ? undefined : v);
+const enumOrEmpty = <T extends [string, ...string[]]>(values: T) =>
+    z.union([z.enum(values), z.literal('')]).transform(v => v === '' ? undefined : v);
+
 const userProfileSchema = z.object({
     id: z.string().optional(),
-    name: z.string().optional(),
+    name: emptyToUndefined.optional(),
     age: z.number().min(0).max(120).optional(),
-    gender: z.enum(['male', 'female', 'other']).optional(),
-    state: z.string().optional(),
-    district: z.string().optional(),
-    incomeRange: z.enum([
+    gender: enumOrEmpty(['male', 'female', 'other']).optional(),
+    state: emptyToUndefined.optional(),
+    district: emptyToUndefined.optional(),
+    incomeRange: enumOrEmpty([
         'below_1lakh',
         '1lakh_2.5lakh',
         '2.5lakh_5lakh',
         '5lakh_10lakh',
         'above_10lakh',
     ]).optional(),
-    profession: z.string().optional(),
-    category: z.enum(['general', 'obc', 'sc', 'st', 'ews']).optional(),
+    profession: emptyToUndefined.optional(),
+    category: enumOrEmpty(['general', 'obc', 'sc', 'st', 'ews']).optional(),
     isDisabled: z.boolean().optional(),
     isMinority: z.boolean().optional(),
     isBPL: z.boolean().optional(),
@@ -45,7 +50,7 @@ const userProfileSchema = z.object({
     isWidow: z.boolean().optional(),
     isSeniorCitizen: z.boolean().optional(),
     familySize: z.number().min(1).max(20).optional(),
-    educationLevel: z.enum([
+    educationLevel: enumOrEmpty([
         'below_10th',
         '10th_pass',
         '12th_pass',
@@ -53,7 +58,7 @@ const userProfileSchema = z.object({
         'post_graduate',
         'professional',
     ]).optional(),
-    employmentStatus: z.enum([
+    employmentStatus: enumOrEmpty([
         'unemployed',
         'self_employed',
         'private_sector',
@@ -78,8 +83,24 @@ const schemeStatusSchema = z.object({
  */
 router.post('/profile', async (req, res) => {
     try {
-        const validated = userProfileSchema.parse(req.body);
-        const profile = await createUserProfile(validated);
+        console.log('Profile POST received:', JSON.stringify(req.body, null, 2));
+        const validated = userProfileSchema.parse(req.body) as Partial<import('../types/index.js').UserProfile> & { id?: string };
+
+        // Check if profile already exists (upsert logic)
+        let profile;
+        if (validated.id) {
+            const existingProfile = await getUserProfile(validated.id);
+            if (existingProfile) {
+                // Update existing profile
+                profile = await updateUserProfile(validated.id, validated);
+            } else {
+                // Create new profile
+                profile = await createUserProfile(validated);
+            }
+        } else {
+            // Create new profile with generated ID
+            profile = await createUserProfile(validated);
+        }
 
         res.status(201).json({
             success: true,
@@ -87,6 +108,7 @@ router.post('/profile', async (req, res) => {
         });
     } catch (error) {
         if (error instanceof z.ZodError) {
+            console.log('Validation errors:', JSON.stringify(error.errors, null, 2));
             return res.status(400).json({
                 success: false,
                 error: 'Invalid profile data',
@@ -94,10 +116,10 @@ router.post('/profile', async (req, res) => {
             });
         }
 
-        console.error('Error creating profile:', error);
+        console.error('Error creating/updating profile:', error);
         res.status(500).json({
             success: false,
-            error: 'Failed to create profile',
+            error: 'Failed to create/update profile',
         });
     }
 });
@@ -138,7 +160,7 @@ router.get('/:id/profile', async (req, res) => {
 router.put('/:id/profile', async (req, res) => {
     try {
         const { id } = req.params;
-        const validated = userProfileSchema.parse(req.body);
+        const validated = userProfileSchema.parse(req.body) as Partial<import('../types/index.js').UserProfile>;
 
         const profile = await updateUserProfile(id, validated);
 

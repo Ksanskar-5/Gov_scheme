@@ -60,7 +60,7 @@ export async function createUser(email: string, password: string, name?: string)
     const passwordHash = await hashPassword(password);
 
     const query = `
-        INSERT INTO users (email, password_hash, name)
+        INSERT INTO public.users (email, password_hash, name)
         VALUES ($1, $2, $3)
         RETURNING id, email, name, created_at
     `;
@@ -71,8 +71,8 @@ export async function createUser(email: string, password: string, name?: string)
         const token = generateToken(user.id);
 
         return { user, token };
-    } catch (error: any) {
-        if (error.code === '23505') { // Unique violation
+    } catch (error: unknown) {
+        if (error && typeof error === 'object' && 'code' in error && error.code === '23505') { // Unique violation
             throw new Error('Email already registered');
         }
         throw error;
@@ -82,7 +82,7 @@ export async function createUser(email: string, password: string, name?: string)
 export async function loginUser(email: string, password: string): Promise<AuthResult> {
     const query = `
         SELECT id, email, password_hash, name, created_at
-        FROM users
+        FROM public.users
         WHERE email = $1
     `;
 
@@ -114,7 +114,7 @@ export async function loginUser(email: string, password: string): Promise<AuthRe
 export async function getUserById(id: string): Promise<User | null> {
     const query = `
         SELECT id, email, name, created_at
-        FROM users
+        FROM public.users
         WHERE id = $1
     `;
 
@@ -130,7 +130,7 @@ export async function getUserById(id: string): Promise<User | null> {
 export async function getUserByEmail(email: string): Promise<User | null> {
     const query = `
         SELECT id, email, name, created_at
-        FROM users
+        FROM public.users
         WHERE email = $1
     `;
 

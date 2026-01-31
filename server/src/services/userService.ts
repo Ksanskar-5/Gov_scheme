@@ -14,7 +14,7 @@ import type {
 // Helper Functions
 // ============================================
 
-function rowToProfile(row: any): UserProfile {
+function rowToProfile(row: UserProfileRow): UserProfile {
     return {
         id: row.id,
         name: row.name || undefined,
@@ -51,7 +51,7 @@ export async function createUserProfile(profile: Partial<UserProfile>): Promise<
     const now = new Date().toISOString();
 
     await pool.query(`
-        INSERT INTO user_profiles (
+        INSERT INTO public.user_profiles (
             id, name, age, gender, state, district, income_range, profession,
             category, is_disabled, is_minority, is_bpl, is_student, is_farmer,
             is_business_owner, is_worker, is_widow, is_senior_citizen,
@@ -94,7 +94,7 @@ export async function createUserProfile(profile: Partial<UserProfile>): Promise<
 
 export async function getUserProfile(id: string): Promise<UserProfile | null> {
     const result = await pool.query(
-        'SELECT * FROM user_profiles WHERE id = $1',
+        'SELECT * FROM public.user_profiles WHERE id = $1',
         [id]
     );
     return result.rows[0] ? rowToProfile(result.rows[0]) : null;
@@ -107,7 +107,7 @@ export async function updateUserProfile(id: string, updates: Partial<UserProfile
     const now = new Date().toISOString();
 
     await pool.query(`
-        UPDATE user_profiles SET
+        UPDATE public.user_profiles SET
             name = COALESCE($1, name),
             age = COALESCE($2, age),
             gender = COALESCE($3, gender),
@@ -160,7 +160,7 @@ export async function updateUserProfile(id: string, updates: Partial<UserProfile
 
 export async function deleteUserProfile(id: string): Promise<boolean> {
     const result = await pool.query(
-        'DELETE FROM user_profiles WHERE id = $1',
+        'DELETE FROM public.user_profiles WHERE id = $1',
         [id]
     );
     return (result.rowCount ?? 0) > 0;
@@ -173,7 +173,7 @@ export async function deleteUserProfile(id: string): Promise<boolean> {
 export async function saveSchemeForUser(userId: string, schemeId: number): Promise<boolean> {
     try {
         await pool.query(`
-            INSERT INTO user_schemes (user_id, scheme_id, status)
+            INSERT INTO public.user_schemes (user_id, scheme_id, status)
             VALUES ($1, $2, 'saved')
             ON CONFLICT(user_id, scheme_id) DO UPDATE SET updated_at = NOW()
         `, [userId, schemeId]);
@@ -191,7 +191,7 @@ export async function updateSchemeStatus(
     notes?: string
 ): Promise<boolean> {
     const result = await pool.query(`
-        UPDATE user_schemes 
+        UPDATE public.user_schemes 
         SET status = $1, notes = COALESCE($2, notes), updated_at = NOW()
         WHERE user_id = $3 AND scheme_id = $4
     `, [status, notes, userId, schemeId]);
@@ -201,7 +201,7 @@ export async function updateSchemeStatus(
 
 export async function removeSchemeForUser(userId: string, schemeId: number): Promise<boolean> {
     const result = await pool.query(
-        'DELETE FROM user_schemes WHERE user_id = $1 AND scheme_id = $2',
+        'DELETE FROM public.user_schemes WHERE user_id = $1 AND scheme_id = $2',
         [userId, schemeId]
     );
     return (result.rowCount ?? 0) > 0;
@@ -215,7 +215,7 @@ export async function getUserSavedSchemes(userId: string): Promise<Array<{
 }>> {
     const result = await pool.query(`
         SELECT scheme_id, status, notes, created_at
-        FROM user_schemes
+        FROM public.user_schemes
         WHERE user_id = $1
         ORDER BY created_at DESC
     `, [userId]);
@@ -230,7 +230,7 @@ export async function getUserSavedSchemes(userId: string): Promise<Array<{
 
 export async function isSchemesSaved(userId: string, schemeId: number): Promise<boolean> {
     const result = await pool.query(
-        'SELECT 1 FROM user_schemes WHERE user_id = $1 AND scheme_id = $2',
+        'SELECT 1 FROM public.user_schemes WHERE user_id = $1 AND scheme_id = $2',
         [userId, schemeId]
     );
     return result.rows.length > 0;
