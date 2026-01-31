@@ -26,20 +26,26 @@ import { SchemeDetailSkeleton } from "@/components/ui/skeleton-card";
 import {
   getSchemeBySlug,
   checkSchemeEligibility,
+  saveScheme,
+  removeSavedScheme,
+  getSavedSchemes,
   type Scheme,
   type EligibilityResult,
   type EligibilityStatus,
   type UserProfile
 } from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 
 export default function SchemeDetail() {
   const { id } = useParams<{ id: string }>();
+  const { user } = useAuth();
   const [scheme, setScheme] = useState<Scheme | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [eligibility, setEligibility] = useState<EligibilityResult | null>(null);
   const [isCheckingEligibility, setIsCheckingEligibility] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   // Load scheme data
   useEffect(() => {
@@ -51,6 +57,19 @@ export default function SchemeDetail() {
 
       if (result.success && result.data) {
         setScheme(result.data);
+
+        // Check if this scheme is saved by the user
+        if (user?.id) {
+          try {
+            const savedResult = await getSavedSchemes(user.id);
+            if (savedResult.success && savedResult.data) {
+              const isSavedScheme = savedResult.data.some(s => s.schemeId === result.data!.id);
+              setIsSaved(isSavedScheme);
+            }
+          } catch (error) {
+            console.error("Error checking saved status:", error);
+          }
+        }
       } else {
         setScheme(null);
       }
@@ -58,7 +77,7 @@ export default function SchemeDetail() {
     }
 
     loadScheme();
-  }, [id]);
+  }, [id, user?.id]);
 
   // Check eligibility
   const handleCheckEligibility = async () => {
@@ -84,9 +103,40 @@ export default function SchemeDetail() {
     setIsCheckingEligibility(false);
   };
 
-  const handleSaveScheme = () => {
-    setIsSaved(!isSaved);
-    toast.success(isSaved ? "Scheme removed from saved list" : "Scheme saved successfully");
+  const handleSaveScheme = async () => {
+    if (!user?.id) {
+      toast.error("Please login to save schemes");
+      return;
+    }
+    if (!scheme) return;
+
+    setIsSaving(true);
+    try {
+      if (isSaved) {
+        // Remove from saved
+        const response = await removeSavedScheme(user.id, scheme.id);
+        if (response.success) {
+          setIsSaved(false);
+          toast.success("Scheme removed from saved list");
+        } else {
+          toast.error("Failed to remove scheme");
+        }
+      } else {
+        // Save scheme
+        const response = await saveScheme(user.id, scheme.id);
+        if (response.success) {
+          setIsSaved(true);
+          toast.success("Scheme saved successfully");
+        } else {
+          toast.error("Failed to save scheme");
+        }
+      }
+    } catch (error) {
+      console.error("Error saving scheme:", error);
+      toast.error("Failed to save scheme");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleShare = () => {
@@ -425,9 +475,13 @@ export default function SchemeDetail() {
 
             {/* Action Buttons */}
             <div className="space-y-3">
-              <Button className="w-full" variant="outline" onClick={handleSaveScheme}>
-                <Bookmark className={`h-4 w-4 mr-2 ${isSaved ? "fill-current" : ""}`} />
-                {isSaved ? "Saved" : "Save Scheme"}
+              <Button className="w-full" variant="outline" onClick={handleSaveScheme} disabled={isSaving}>
+                {isSaving ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Bookmark className={`h-4 w-4 mr-2 ${isSaved ? "fill-current" : ""}`} />
+                )}
+                {isSaving ? "Saving..." : isSaved ? "Saved" : "Save Scheme"}
               </Button>
 
               <Button variant="ghost" className="w-full" onClick={handleShare}>
