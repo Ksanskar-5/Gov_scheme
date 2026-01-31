@@ -1,188 +1,207 @@
-# 🚀 Deployment Guide: Vercel + Railway
+# 🚀 Deployment Guide: Vercel + Render + Supabase
 
-This guide will help you deploy the **Bharat Scheme Guide** application using:
-- **Vercel** for the React frontend
-- **Railway** for the Node.js backend
+Deploy the **Bharat Scheme Guide** application using:
+- **Vercel** - React frontend (free)
+- **Render** - Node.js backend (free tier)
+- **Supabase** - PostgreSQL database (free tier)
 
 ---
 
 ## 📋 Prerequisites
 
-Before starting, make sure you have:
-
-1. ✅ A **GitHub account** (https://github.com)
-2. ✅ A **Vercel account** (https://vercel.com) - Sign up with GitHub
-3. ✅ A **Railway account** (https://railway.app) - Sign up with GitHub
-4. ✅ A **Google Gemini API Key** (https://aistudio.google.com/apikey) - Free!
-
----
-
-## 🔑 Step 1: Get Your Gemini API Key
-
-1. Go to **https://aistudio.google.com/apikey**
-2. Sign in with your Google account
-3. Click **"Create API Key"**
-4. Copy and save the API key somewhere safe (you'll need it later)
+1. ✅ **GitHub account** - [github.com](https://github.com)
+2. ✅ **Supabase account** - [supabase.com](https://supabase.com)
+3. ✅ **Render account** - [render.com](https://render.com)
+4. ✅ **Vercel account** - [vercel.com](https://vercel.com)
+5. ✅ **Google Gemini API Key** - [aistudio.google.com/apikey](https://aistudio.google.com/apikey)
 
 ---
 
-## 📤 Step 2: Push Code to GitHub
+## 🗄️ Step 1: Set Up Supabase Database
 
-If you haven't already, push your code to GitHub:
+### 1.1 Create Supabase Project
+
+1. Go to [supabase.com](https://supabase.com) and sign in
+2. Click **"New Project"**
+3. Enter a project name (e.g., `bharat-scheme-guide`)
+4. Set a **secure database password** (save this!)
+5. Select a region closest to your users
+6. Click **"Create Project"** and wait ~2 minutes
+
+### 1.2 Get Connection String
+
+1. Go to **Settings** → **Database**
+2. Scroll to **Connection String** section
+3. Select **URI** tab
+4. Copy the connection string (looks like):
+   ```
+   postgresql://postgres:[YOUR-PASSWORD]@db.xxxxx.supabase.co:5432/postgres
+   ```
+5. Replace `[YOUR-PASSWORD]` with your actual password
+
+### 1.3 Create Database Schema
+
+1. Go to **SQL Editor** in Supabase dashboard
+2. Click **"New Query"**
+3. Copy the contents of `server/supabase-schema.sql`
+4. Click **"Run"**
+5. You should see "Success" for all statements
+
+### 1.4 Import Schemes Data (Local)
+
+On your local machine:
 
 ```bash
-# In your project directory
-cd /Users/ksanskar/Work/GOV_SCHEME
+cd server
 
-# Initialize git (if not done)
-git init
+# Install dependencies (including pg)
+npm install
 
-# Add all files
-git add .
+# Set your DATABASE_URL in .env
+echo "DATABASE_URL=your_supabase_connection_string" >> .env
 
-# Commit
-git commit -m "Ready for deployment"
-
-# Add your GitHub repo as remote (replace with your repo URL)
-git remote add origin https://github.com/YOUR_USERNAME/bharat-scheme-guide.git
-
-# Push to GitHub
-git push -u origin main
+# Import schemes to Supabase
+npm run import-schemes:supabase
 ```
+
+You should see "✅ Imported XXXX schemes" when complete.
 
 ---
 
-## 🚂 Step 3: Deploy Backend to Railway
+## 🚂 Step 2: Deploy Backend to Render
 
-### 3.1 Create Railway Project
+### 2.1 Push Code to GitHub
 
-1. Go to **https://railway.app**
-2. Click **"Start a New Project"**
-3. Select **"Deploy from GitHub repo"**
-4. Choose your repository
-5. **Important:** Select only the `server` folder:
-   - Click on your repo
-   - Railway will auto-detect it
-   - When asked, select **"server"** as the root directory
+```bash
+git add .
+git commit -m "Add Supabase PostgreSQL support"
+git push origin main
+```
 
-### 3.2 Configure Environment Variables
+### 2.2 Create Render Web Service
 
-After Railway creates your project:
+1. Go to [render.com](https://render.com) → **Dashboard**
+2. Click **"New"** → **"Web Service"**
+3. Connect your GitHub repository
+4. Configure:
+   - **Name:** `bharat-scheme-api`
+   - **Root Directory:** `server`
+   - **Runtime:** `Node`
+   - **Build Command:** `npm install && npm run build`
+   - **Start Command:** `npm run start:pg`
 
-1. Click on your service
-2. Go to **"Variables"** tab
-3. Add these variables (click "New Variable" for each):
+### 2.3 Add Environment Variables
+
+In Render dashboard, go to **Environment** tab and add:
 
 | Variable | Value |
 |----------|-------|
-| `PORT` | `3001` |
+| `DATABASE_URL` | Your Supabase connection string |
+| `GEMINI_API_KEY` | Your Google Gemini API key |
 | `NODE_ENV` | `production` |
-| `GEMINI_API_KEY` | `your_api_key_from_step_1` |
 | `FRONTEND_URL` | `https://your-app.vercel.app` (update after Vercel deploy) |
-| `DATABASE_PATH` | `./data/schemes.db` |
-| `RATE_LIMIT_WINDOW_MS` | `60000` |
-| `RATE_LIMIT_MAX_REQUESTS` | `100` |
+| `PORT` | `3001` |
 
-### 3.3 Deploy
+### 2.4 Deploy
 
-1. Railway will automatically deploy after you add variables
-2. Wait for the build to complete (2-3 minutes)
-3. Click **"Settings"** → **"Generate Domain"**
-4. Copy your Railway URL (e.g., `https://your-app.up.railway.app`)
+1. Click **"Create Web Service"**
+2. Wait for build to complete (~3-5 minutes)
+3. Copy your Render URL (e.g., `https://bharat-scheme-api.onrender.com`)
 
-### 3.4 Verify Backend
+### 2.5 Verify Backend
 
-Open your Railway URL in browser:
-```
-https://your-app.up.railway.app/api/health
-```
+Visit: `https://your-render-url.onrender.com/api/health`
 
 You should see:
 ```json
 {
   "success": true,
-  "message": "JanScheme API is running"
+  "message": "JanScheme API is running",
+  "database": "PostgreSQL (Supabase)"
 }
 ```
 
 ---
 
-## ▲ Step 4: Deploy Frontend to Vercel
+## ▲ Step 3: Deploy Frontend to Vercel
 
-### 4.1 Create Vercel Project
+### 3.1 Create Vercel Project
 
-1. Go to **https://vercel.com**
-2. Click **"Add New Project"**
-3. Select **"Import Git Repository"**
-4. Choose your repository
-5. In the configuration:
-   - **Framework Preset:** Vite
-   - **Root Directory:** `.` (leave as root, not server)
+1. Go to [vercel.com](https://vercel.com) → **Dashboard**
+2. Click **"Add New"** → **"Project"**
+3. Import your GitHub repository
+4. Configure:
+   - **Framework Preset:** `Vite`
+   - **Root Directory:** `.` (leave as root)
    - **Build Command:** `npm run build`
    - **Output Directory:** `dist`
 
-### 4.2 Add Environment Variable
+### 3.2 Add Environment Variable
 
-Before deploying, add the backend URL:
+Before deploying, add:
+- **Name:** `VITE_API_URL`
+- **Value:** `https://your-render-url.onrender.com/api`
 
-1. Expand **"Environment Variables"**
-2. Add:
-   - **Name:** `VITE_API_URL`
-   - **Value:** `https://your-railway-app.up.railway.app/api` (your Railway URL + /api)
-
-### 4.3 Deploy
+### 3.3 Deploy
 
 1. Click **"Deploy"**
-2. Wait 1-2 minutes for the build
-3. Click on the generated URL to view your site!
+2. Wait ~2 minutes for build
+3. Copy your Vercel URL (e.g., `https://bharat-scheme-guide.vercel.app`)
 
 ---
 
-## 🔄 Step 5: Update Railway with Frontend URL
+## 🔄 Step 4: Update CORS Settings
 
-Now that Vercel is deployed, update Railway:
+Go back to **Render** and update:
 
-1. Go back to **Railway**
-2. Click on your service → **"Variables"**
-3. Update `FRONTEND_URL` with your Vercel URL:
-   - Example: `https://bharat-scheme-guide.vercel.app`
-4. Railway will automatically redeploy
+1. Click on your service → **Environment**
+2. Update `FRONTEND_URL` to your exact Vercel URL
+3. Render will automatically redeploy
 
 ---
 
-## ✅ Step 6: Test Your Deployment
+## ✅ Step 5: Test Your Deployment
 
 1. **Open your Vercel URL**
-2. **Test the search:** Search for "farmer schemes"
-3. **Test the chatbot:** Click the chat icon and ask a question
+2. **Test search:** Search for "farmer schemes"
+3. **Test chatbot:** Click the chat icon and ask a question
 4. **Test scheme details:** Click on any scheme card
-
----
-
-## 🎉 Congratulations!
-
-Your application is now live! Share your Vercel URL with others.
 
 ---
 
 ## 🔧 Troubleshooting
 
 ### "API not responding"
-- Check Railway logs for errors
-- Verify `GEMINI_API_KEY` is correct
-- Make sure `FRONTEND_URL` includes `https://`
+- Check Render logs for errors
+- Verify `DATABASE_URL` is correct
+- Make sure `GEMINI_API_KEY` is valid
 
 ### "CORS error"
-- Update `FRONTEND_URL` in Railway to match your exact Vercel URL
+- Update `FRONTEND_URL` in Render to exact Vercel URL
 - Don't include trailing slash
+- Redeploy Render service
 
-### "Chat not working"
-- Verify your Gemini API key is valid
-- Check Railway logs for AI-related errors
+### "Database connection failed"
+- Verify Supabase connection string
+- Check if password has special characters (may need URL encoding)
+- Ensure Supabase project is not paused (free tier pauses after inactivity)
 
 ### "No schemes found"
-- The database import may have failed
-- In Railway, click "Redeploy" to re-run the import script
+- Re-run: `npm run import-schemes:supabase`
+- Check Supabase SQL Editor for data in `schemes` table
+
+---
+
+## 💰 Cost Summary
+
+| Service | Free Tier |
+|---------|-----------|
+| **Vercel** | ✅ Free for personal projects |
+| **Render** | ✅ Free tier (spins down after 15min inactivity) |
+| **Supabase** | ✅ 500MB database, pauses after 7 days inactivity |
+| **Gemini API** | ✅ Free tier with generous limits |
+
+> **Note:** Free tiers have cold start times. First request may take 30-60 seconds after inactivity.
 
 ---
 
@@ -190,20 +209,10 @@ Your application is now live! Share your Vercel URL with others.
 
 After making code changes:
 
-1. Commit and push to GitHub:
-   ```bash
-   git add .
-   git commit -m "Your changes"
-   git push
-   ```
+```bash
+git add .
+git commit -m "Your changes"
+git push
+```
 
-2. Both Vercel and Railway will **automatically redeploy**!
-
----
-
-## 💰 Cost
-
-- **Vercel:** Free for personal projects
-- **Railway:** Free trial, then ~$5/month for hobby plan
-- **Gemini API:** Free tier available (generous limits)
-
+Both Vercel and Render will **automatically redeploy**!
