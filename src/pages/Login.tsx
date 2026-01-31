@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
-import { Mail, Phone, ArrowRight, Shield } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { Mail, Lock, ArrowRight, Shield, User as UserIcon } from "lucide-react";
 import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -9,34 +9,87 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
+import { useAuth } from "@/context/AuthContext";
+
+// Ensure API_URL points to the base API path (e.g., http://localhost:3001/api)
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001/api";
 
 export default function Login() {
+  const navigate = useNavigate();
+  const { login } = useAuth();
   const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
-  const [otp, setOtp] = useState("");
-  const [otpSent, setOtpSent] = useState(false);
+  const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
   const [consentGiven, setConsentGiven] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSendOtp = async (type: "email" | "phone") => {
+  const handleLogin = async () => {
     if (!consentGiven) {
       toast.error("Please accept the data usage consent");
       return;
     }
-    
+
     setIsLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    setOtpSent(true);
-    setIsLoading(false);
-    toast.success(`OTP sent to your ${type}`);
+    try {
+      const response = await fetch(`${API_URL}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Login failed");
+      }
+
+      // Login via context (updates Navbar immediately)
+      login(data.token, data.user);
+
+      toast.success("Login successful!");
+      navigate("/dashboard");
+    } catch (error: any) {
+      toast.error(error.message || "Login failed");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleVerifyOtp = async () => {
+  const handleRegister = async () => {
+    if (!consentGiven) {
+      toast.error("Please accept the data usage consent");
+      return;
+    }
+
+    if (password.length < 6) {
+      toast.error("Password must be at least 6 characters");
+      return;
+    }
+
     setIsLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    setIsLoading(false);
-    toast.success("Login successful!");
-    window.location.href = "/dashboard";
+    try {
+      const response = await fetch(`${API_URL}/auth/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password, name: name || undefined }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Registration failed");
+      }
+
+      // Login via context
+      login(data.token, data.user);
+
+      toast.success("Account created successfully!");
+      navigate("/dashboard");
+    } catch (error: any) {
+      toast.error(error.message || "Registration failed");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -49,111 +102,118 @@ export default function Login() {
             </div>
             <CardTitle className="text-2xl">Welcome to JanScheme</CardTitle>
             <CardDescription>
-              Login to get personalized scheme recommendations
+              Login or create an account to get personalized scheme recommendations
             </CardDescription>
           </CardHeader>
-          
+
           <CardContent>
-            <Tabs defaultValue="phone" className="w-full">
+            <Tabs defaultValue="login" className="w-full">
               <TabsList className="grid w-full grid-cols-2 mb-6">
-                <TabsTrigger value="phone" className="flex items-center gap-2">
-                  <Phone className="h-4 w-4" />
-                  Phone
+                <TabsTrigger value="login" className="flex items-center gap-2">
+                  <Lock className="h-4 w-4" />
+                  Login
                 </TabsTrigger>
-                <TabsTrigger value="email" className="flex items-center gap-2">
-                  <Mail className="h-4 w-4" />
-                  Email
+                <TabsTrigger value="register" className="flex items-center gap-2">
+                  <UserIcon className="h-4 w-4" />
+                  Register
                 </TabsTrigger>
               </TabsList>
 
-              <TabsContent value="phone" className="space-y-4">
+              {/* Login Tab */}
+              <TabsContent value="login" className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="phone">Phone Number</Label>
-                  <div className="flex gap-2">
-                    <div className="w-16 flex items-center justify-center bg-muted rounded-md border border-input text-sm">
-                      +91
-                    </div>
+                  <Label htmlFor="login-email">Email Address</Label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
-                      id="phone"
-                      type="tel"
-                      placeholder="Enter 10-digit number"
-                      maxLength={10}
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
-                      disabled={otpSent}
+                      id="login-email"
+                      type="email"
+                      placeholder="Enter your email"
+                      className="pl-10"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
                     />
                   </div>
                 </div>
 
-                {otpSent && (
-                  <div className="space-y-2">
-                    <Label htmlFor="otp">Enter OTP</Label>
+                <div className="space-y-2">
+                  <Label htmlFor="login-password">Password</Label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
-                      id="otp"
-                      type="text"
-                      placeholder="6-digit OTP"
-                      maxLength={6}
-                      value={otp}
-                      onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
+                      id="login-password"
+                      type="password"
+                      placeholder="Enter your password"
+                      className="pl-10"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
                     />
-                    <button 
-                      className="text-sm text-primary hover:underline"
-                      onClick={() => handleSendOtp("phone")}
-                    >
-                      Resend OTP
-                    </button>
                   </div>
-                )}
+                </div>
 
-                <Button 
+                <Button
                   className="w-full bg-accent hover:bg-accent/90"
-                  disabled={isLoading || phone.length !== 10 || (otpSent && otp.length !== 6)}
-                  onClick={() => otpSent ? handleVerifyOtp() : handleSendOtp("phone")}
+                  disabled={isLoading || !email.includes("@") || password.length < 6}
+                  onClick={handleLogin}
                 >
-                  {isLoading ? "Please wait..." : otpSent ? "Verify & Login" : "Send OTP"}
+                  {isLoading ? "Please wait..." : "Login"}
                   <ArrowRight className="h-4 w-4 ml-2" />
                 </Button>
               </TabsContent>
 
-              <TabsContent value="email" className="space-y-4">
+              {/* Register Tab */}
+              <TabsContent value="register" className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="email">Email Address</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="Enter your email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    disabled={otpSent}
-                  />
+                  <Label htmlFor="register-name">Name (Optional)</Label>
+                  <div className="relative">
+                    <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="register-name"
+                      type="text"
+                      placeholder="Enter your name"
+                      className="pl-10"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                    />
+                  </div>
                 </div>
 
-                {otpSent && (
-                  <div className="space-y-2">
-                    <Label htmlFor="emailOtp">Enter OTP</Label>
+                <div className="space-y-2">
+                  <Label htmlFor="register-email">Email Address</Label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
-                      id="emailOtp"
-                      type="text"
-                      placeholder="6-digit OTP"
-                      maxLength={6}
-                      value={otp}
-                      onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
+                      id="register-email"
+                      type="email"
+                      placeholder="Enter your email"
+                      className="pl-10"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
                     />
-                    <button 
-                      className="text-sm text-primary hover:underline"
-                      onClick={() => handleSendOtp("email")}
-                    >
-                      Resend OTP
-                    </button>
                   </div>
-                )}
+                </div>
 
-                <Button 
+                <div className="space-y-2">
+                  <Label htmlFor="register-password">Password</Label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="register-password"
+                      type="password"
+                      placeholder="Minimum 6 characters"
+                      className="pl-10"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <Button
                   className="w-full bg-accent hover:bg-accent/90"
-                  disabled={isLoading || !email.includes("@") || (otpSent && otp.length !== 6)}
-                  onClick={() => otpSent ? handleVerifyOtp() : handleSendOtp("email")}
+                  disabled={isLoading || !email.includes("@") || password.length < 6}
+                  onClick={handleRegister}
                 >
-                  {isLoading ? "Please wait..." : otpSent ? "Verify & Login" : "Send OTP"}
+                  {isLoading ? "Please wait..." : "Create Account"}
                   <ArrowRight className="h-4 w-4 ml-2" />
                 </Button>
               </TabsContent>
@@ -161,13 +221,13 @@ export default function Login() {
 
             {/* Consent Checkbox */}
             <div className="mt-6 flex items-start gap-3">
-              <Checkbox 
-                id="consent" 
+              <Checkbox
+                id="consent"
                 checked={consentGiven}
                 onCheckedChange={(checked) => setConsentGiven(checked as boolean)}
               />
               <label htmlFor="consent" className="text-sm text-muted-foreground cursor-pointer">
-                I consent to JanScheme using my data to provide personalized scheme recommendations. 
+                I consent to JanScheme using my data to provide personalized scheme recommendations.
                 My data will not be shared with third parties.{" "}
                 <Link to="/privacy" className="text-primary hover:underline">
                   Privacy Policy
@@ -187,11 +247,6 @@ export default function Login() {
             </div>
           </CardContent>
         </Card>
-
-        <p className="text-center text-sm text-muted-foreground mt-6">
-          Don't have an account?{" "}
-          <span className="text-foreground">Your account will be created automatically on first login.</span>
-        </p>
       </div>
     </Layout>
   );

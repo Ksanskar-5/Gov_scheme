@@ -24,7 +24,7 @@ const searchQuerySchema = z.object({
     category: z.string().optional(),
     state: z.string().optional(),
     level: z.enum(['Central', 'State', 'all']).optional(),
-    tags: z.string().optional(), // Comma-separated
+    tags: z.string().optional(),
     page: z.string().regex(/^\d+$/).optional().transform(v => v ? parseInt(v) : 1),
     limit: z.string().regex(/^\d+$/).optional().transform(v => v ? Math.min(parseInt(v), 50) : 20),
 });
@@ -50,17 +50,17 @@ const eligibilityCheckSchema = z.object({
 });
 
 // ============================================
-// Routes
+// Routes (Async)
 // ============================================
 
 /**
  * GET /api/schemes
  * Get all schemes with pagination
  */
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
     try {
         const { page, limit } = searchQuerySchema.parse(req.query);
-        const result = getAllSchemes(page, limit);
+        const result = await getAllSchemes(page, limit);
 
         res.json({
             success: true,
@@ -80,9 +80,9 @@ router.get('/', (req, res) => {
  * GET /api/schemes/stats
  * Get scheme statistics
  */
-router.get('/stats', (_req, res) => {
+router.get('/stats', async (_req, res) => {
     try {
-        const stats = getSchemeStats();
+        const stats = await getSchemeStats();
         res.json({
             success: true,
             data: stats,
@@ -100,11 +100,13 @@ router.get('/stats', (_req, res) => {
  * GET /api/schemes/filters
  * Get available filter options
  */
-router.get('/filters', (_req, res) => {
+router.get('/filters', async (_req, res) => {
     try {
-        const categories = getCategories();
-        const states = getStates();
-        const tags = getTags();
+        const [categories, states, tags] = await Promise.all([
+            getCategories(),
+            getStates(),
+            getTags(),
+        ]);
 
         res.json({
             success: true,
@@ -128,7 +130,7 @@ router.get('/filters', (_req, res) => {
  * GET /api/schemes/search
  * Search schemes with filters
  */
-router.get('/search', (req, res) => {
+router.get('/search', async (req, res) => {
     try {
         const validated = searchQuerySchema.parse(req.query);
 
@@ -142,7 +144,7 @@ router.get('/search', (req, res) => {
             limit: validated.limit,
         };
 
-        const result = searchSchemes(query);
+        const result = await searchSchemes(query);
 
         res.json({
             success: true,
@@ -162,19 +164,19 @@ router.get('/search', (req, res) => {
  * GET /api/schemes/:idOrSlug
  * Get scheme by ID or slug
  */
-router.get('/:idOrSlug', (req, res) => {
+router.get('/:idOrSlug', async (req, res) => {
     try {
         const { idOrSlug } = req.params;
 
         // Try as ID first
         let scheme = null;
         if (/^\d+$/.test(idOrSlug)) {
-            scheme = getSchemeById(parseInt(idOrSlug));
+            scheme = await getSchemeById(parseInt(idOrSlug));
         }
 
         // Try as slug
         if (!scheme) {
-            scheme = getSchemeBySlug(idOrSlug);
+            scheme = await getSchemeBySlug(idOrSlug);
         }
 
         if (!scheme) {
@@ -201,10 +203,10 @@ router.get('/:idOrSlug', (req, res) => {
  * POST /api/schemes/:id/check-eligibility
  * Check eligibility for a specific scheme
  */
-router.post('/:id/check-eligibility', (req, res) => {
+router.post('/:id/check-eligibility', async (req, res) => {
     try {
         const schemeId = parseInt(req.params.id);
-        const scheme = getSchemeById(schemeId);
+        const scheme = await getSchemeById(schemeId);
 
         if (!scheme) {
             return res.status(404).json({

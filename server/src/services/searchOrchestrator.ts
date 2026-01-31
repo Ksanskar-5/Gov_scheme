@@ -6,13 +6,11 @@ import type {
     SearchResult,
     UserProfile,
     SchemeWithScore,
-    ParsedIntent
 } from '../types/index.js';
 
 // ============================================
-// Search Orchestrator
+// Search Orchestrator (PostgreSQL Version)
 // ============================================
-// Combines query parsing, vector search, and eligibility engine
 
 export async function orchestrateSmartSearch(
     request: SmartSearchQuery,
@@ -33,36 +31,31 @@ export async function orchestrateSmartSearch(
     // Step 2: Perform keyword-based search with scoring
     const filters: { category?: string; state?: string; level?: 'Central' | 'State' | 'all' } = {};
 
-    // Add category filter if strongly identified
     if (suggestedCategories.length > 0) {
         filters.category = suggestedCategories[0];
     }
 
-    // Add state filter from parsed intent or user profile
     if (parsedIntent.state) {
         filters.state = parsedIntent.state;
     } else if (userProfile?.state) {
         filters.state = userProfile.state;
     }
 
-    // Step 3: Execute smart search
-    const searchResult = smartSearch(keywords, filters, page, limit);
+    // Step 3: Execute smart search (async)
+    const searchResult = await smartSearch(keywords, filters, page, limit);
 
     // Step 4: If user profile is available, enhance with eligibility scoring
     let enhancedSchemes: SchemeWithScore[] = searchResult.data;
 
     if (userProfile && Object.keys(userProfile).length > 0) {
-        // Get eligibility results for all schemes
         const eligibilityResults = checkBatchEligibility(userProfile, searchResult.data);
 
-        // Enhance schemes with eligibility info
         enhancedSchemes = searchResult.data.map(scheme => {
             const eligibility = eligibilityResults.get(scheme.id);
             return {
                 ...scheme,
                 eligibilityStatus: eligibility?.status,
                 matchReasons: eligibility?.matchedCriteria || [],
-                // Adjust relevance score based on eligibility
                 relevanceScore: scheme.relevanceScore + (
                     eligibility?.status === 'eligible' ? 50 :
                         eligibility?.status === 'possibly_eligible' ? 25 :
@@ -71,7 +64,6 @@ export async function orchestrateSmartSearch(
             };
         });
 
-        // Re-sort by combined score
         enhancedSchemes.sort((a, b) => b.relevanceScore - a.relevanceScore);
     }
 
@@ -93,7 +85,6 @@ export async function getPersonalizedRecommendations(
     userProfile: Partial<UserProfile>,
     limit = 10
 ): Promise<SchemeWithScore[]> {
-    // Build search keywords from user profile
     const profileKeywords: string[] = [];
 
     if (userProfile.isFarmer || userProfile.profession?.toLowerCase().includes('farmer')) {
@@ -132,23 +123,19 @@ export async function getPersonalizedRecommendations(
         profileKeywords.push('sc', 'st', 'scheduled', 'tribal');
     }
 
-    // Default keywords if profile is minimal
     if (profileKeywords.length === 0) {
         profileKeywords.push('welfare', 'assistance', 'benefit');
     }
 
-    // Search with profile-based keywords
-    const searchResult = smartSearch(
+    const searchResult = await smartSearch(
         profileKeywords,
         { state: userProfile.state },
         1,
-        limit * 2 // Get more to filter
+        limit * 2
     );
 
-    // Score by eligibility
     const scoredSchemes = scoreSchemesByEligibility(userProfile, searchResult.data);
 
-    // Return top schemes
     return scoredSchemes
         .slice(0, limit)
         .map(({ scheme, eligibility }) => ({
@@ -163,13 +150,13 @@ export async function getPersonalizedRecommendations(
 // Category-based Search
 // ============================================
 
-export function searchByCategory(
+export async function searchByCategory(
     category: string,
     userProfile?: Partial<UserProfile>,
     page = 1,
     limit = 20
-): SearchResult {
-    const result = searchSchemes({
+): Promise<SearchResult> {
+    const result = await searchSchemes({
         category,
         state: userProfile?.state,
         page,
@@ -181,7 +168,6 @@ export function searchByCategory(
         relevanceScore: 0,
     }));
 
-    // Apply eligibility if profile available
     if (userProfile && Object.keys(userProfile).length > 0) {
         const eligibilityResults = checkBatchEligibility(userProfile, result.data);
 
@@ -229,7 +215,7 @@ export async function searchByLifeEvent(
 ): Promise<SearchResult> {
     const keywords = LIFE_EVENT_KEYWORDS[event] || [event];
 
-    const searchResult = smartSearch(
+    const searchResult = await smartSearch(
         keywords,
         { state: userProfile?.state },
         page,

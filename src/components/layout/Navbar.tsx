@@ -3,8 +3,10 @@ import { Link, useLocation } from "react-router-dom";
 import { Search, Menu, X, User, LogIn } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useAuth } from "@/context/AuthContext";
 
 export function Navbar() {
+  const { user, logout, isAuthenticated } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const location = useLocation();
@@ -23,7 +25,7 @@ export function Navbar() {
       <a href="#main-content" className="skip-link">
         Skip to main content
       </a>
-      
+
       <div className="container-gov">
         <div className="flex h-16 items-center justify-between gap-4">
           {/* Logo */}
@@ -56,31 +58,28 @@ export function Navbar() {
           <nav className="hidden lg:flex items-center gap-1">
             <Link
               to="/"
-              className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                isActive("/") 
-                  ? "bg-primary/10 text-primary" 
-                  : "text-muted-foreground hover:text-foreground hover:bg-secondary"
-              }`}
+              className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive("/")
+                ? "bg-primary/10 text-primary"
+                : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+                }`}
             >
               Home
             </Link>
             <Link
               to="/search"
-              className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                isActive("/search") 
-                  ? "bg-primary/10 text-primary" 
-                  : "text-muted-foreground hover:text-foreground hover:bg-secondary"
-              }`}
+              className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive("/search")
+                ? "bg-primary/10 text-primary"
+                : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+                }`}
             >
               Browse Schemes
             </Link>
             <Link
               to="/dashboard"
-              className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                isActive("/dashboard") 
-                  ? "bg-primary/10 text-primary" 
-                  : "text-muted-foreground hover:text-foreground hover:bg-secondary"
-              }`}
+              className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive("/dashboard")
+                ? "bg-primary/10 text-primary"
+                : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+                }`}
             >
               Dashboard
             </Link>
@@ -88,18 +87,35 @@ export function Navbar() {
 
           {/* Auth Buttons */}
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" className="hidden sm:flex gap-2" asChild>
-              <Link to="/login">
-                <LogIn className="h-4 w-4" />
-                Login
-              </Link>
-            </Button>
-            <Button size="sm" className="hidden sm:flex gap-2 bg-accent hover:bg-accent/90" asChild>
-              <Link to="/profile">
-                <User className="h-4 w-4" />
-                My Profile
-              </Link>
-            </Button>
+            {!isAuthenticated ? (
+              <Button variant="ghost" size="sm" className="hidden sm:flex gap-2" asChild>
+                <Link to="/login">
+                  <LogIn className="h-4 w-4" />
+                  Login
+                </Link>
+              </Button>
+            ) : (
+              <>
+                <div className="hidden md:flex flex-col items-end mr-2">
+                  <span className="text-sm font-medium">{user?.name || user?.email}</span>
+                  <span className="text-xs text-muted-foreground">User</span>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="hidden sm:flex"
+                  onClick={logout}
+                >
+                  Logout
+                </Button>
+                <Button size="sm" className="hidden sm:flex gap-2 bg-accent hover:bg-accent/90" asChild>
+                  <Link to="/profile">
+                    <User className="h-4 w-4" />
+                    Profile
+                  </Link>
+                </Button>
+              </>
+            )}
 
             {/* Mobile Menu Button */}
             <Button
@@ -136,36 +152,32 @@ export function Navbar() {
             <nav className="flex flex-col gap-1">
               <Link
                 to="/"
-                className={`px-3 py-2 rounded-md text-sm font-medium ${
-                  isActive("/") ? "bg-primary/10 text-primary" : "text-muted-foreground"
-                }`}
+                className={`px-3 py-2 rounded-md text-sm font-medium ${isActive("/") ? "bg-primary/10 text-primary" : "text-muted-foreground"
+                  }`}
                 onClick={() => setIsMenuOpen(false)}
               >
                 Home
               </Link>
               <Link
                 to="/search"
-                className={`px-3 py-2 rounded-md text-sm font-medium ${
-                  isActive("/search") ? "bg-primary/10 text-primary" : "text-muted-foreground"
-                }`}
+                className={`px-3 py-2 rounded-md text-sm font-medium ${isActive("/search") ? "bg-primary/10 text-primary" : "text-muted-foreground"
+                  }`}
                 onClick={() => setIsMenuOpen(false)}
               >
                 Browse Schemes
               </Link>
               <Link
                 to="/dashboard"
-                className={`px-3 py-2 rounded-md text-sm font-medium ${
-                  isActive("/dashboard") ? "bg-primary/10 text-primary" : "text-muted-foreground"
-                }`}
+                className={`px-3 py-2 rounded-md text-sm font-medium ${isActive("/dashboard") ? "bg-primary/10 text-primary" : "text-muted-foreground"
+                  }`}
                 onClick={() => setIsMenuOpen(false)}
               >
                 Dashboard
               </Link>
               <Link
                 to="/my-schemes"
-                className={`px-3 py-2 rounded-md text-sm font-medium ${
-                  isActive("/my-schemes") ? "bg-primary/10 text-primary" : "text-muted-foreground"
-                }`}
+                className={`px-3 py-2 rounded-md text-sm font-medium ${isActive("/my-schemes") ? "bg-primary/10 text-primary" : "text-muted-foreground"
+                  }`}
                 onClick={() => setIsMenuOpen(false)}
               >
                 My Schemes

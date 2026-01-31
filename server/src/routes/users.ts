@@ -69,17 +69,17 @@ const schemeStatusSchema = z.object({
 });
 
 // ============================================
-// Profile Routes
+// Profile Routes (Async)
 // ============================================
 
 /**
  * POST /api/users/profile
  * Create a new user profile
  */
-router.post('/profile', (req, res) => {
+router.post('/profile', async (req, res) => {
     try {
         const validated = userProfileSchema.parse(req.body);
-        const profile = createUserProfile(validated);
+        const profile = await createUserProfile(validated);
 
         res.status(201).json({
             success: true,
@@ -106,10 +106,10 @@ router.post('/profile', (req, res) => {
  * GET /api/users/:id/profile
  * Get user profile by ID
  */
-router.get('/:id/profile', (req, res) => {
+router.get('/:id/profile', async (req, res) => {
     try {
         const { id } = req.params;
-        const profile = getUserProfile(id);
+        const profile = await getUserProfile(id);
 
         if (!profile) {
             return res.status(404).json({
@@ -135,12 +135,12 @@ router.get('/:id/profile', (req, res) => {
  * PUT /api/users/:id/profile
  * Update user profile
  */
-router.put('/:id/profile', (req, res) => {
+router.put('/:id/profile', async (req, res) => {
     try {
         const { id } = req.params;
         const validated = userProfileSchema.parse(req.body);
 
-        const profile = updateUserProfile(id, validated);
+        const profile = await updateUserProfile(id, validated);
 
         if (!profile) {
             return res.status(404).json({
@@ -174,10 +174,10 @@ router.put('/:id/profile', (req, res) => {
  * DELETE /api/users/:id/profile
  * Delete user profile
  */
-router.delete('/:id/profile', (req, res) => {
+router.delete('/:id/profile', async (req, res) => {
     try {
         const { id } = req.params;
-        const deleted = deleteUserProfile(id);
+        const deleted = await deleteUserProfile(id);
 
         if (!deleted) {
             return res.status(404).json({
@@ -200,30 +200,32 @@ router.delete('/:id/profile', (req, res) => {
 });
 
 // ============================================
-// Saved Schemes Routes
+// Saved Schemes Routes (Async)
 // ============================================
 
 /**
  * GET /api/users/:id/schemes
  * Get user's saved schemes
  */
-router.get('/:id/schemes', (req, res) => {
+router.get('/:id/schemes', async (req, res) => {
     try {
         const { id } = req.params;
-        const savedSchemes = getUserSavedSchemes(id);
+        const savedSchemes = await getUserSavedSchemes(id);
 
         // Fetch full scheme details
-        const schemesWithDetails = savedSchemes.map(saved => {
-            const scheme = getSchemeById(saved.schemeId);
-            return {
-                ...saved,
-                scheme,
-            };
-        }).filter(s => s.scheme !== null);
+        const schemesWithDetails = await Promise.all(
+            savedSchemes.map(async saved => {
+                const scheme = await getSchemeById(saved.schemeId);
+                return {
+                    ...saved,
+                    scheme,
+                };
+            })
+        );
 
         res.json({
             success: true,
-            data: schemesWithDetails,
+            data: schemesWithDetails.filter(s => s.scheme !== null),
         });
     } catch (error) {
         console.error('Error fetching saved schemes:', error);
@@ -238,12 +240,12 @@ router.get('/:id/schemes', (req, res) => {
  * POST /api/users/:id/schemes/:schemeId
  * Save a scheme for user
  */
-router.post('/:id/schemes/:schemeId', (req, res) => {
+router.post('/:id/schemes/:schemeId', async (req, res) => {
     try {
         const { id, schemeId } = req.params;
 
         // Verify scheme exists
-        const scheme = getSchemeById(parseInt(schemeId));
+        const scheme = await getSchemeById(parseInt(schemeId));
         if (!scheme) {
             return res.status(404).json({
                 success: false,
@@ -251,7 +253,7 @@ router.post('/:id/schemes/:schemeId', (req, res) => {
             });
         }
 
-        const saved = saveSchemeForUser(id, parseInt(schemeId));
+        const saved = await saveSchemeForUser(id, parseInt(schemeId));
 
         if (!saved) {
             return res.status(500).json({
@@ -277,12 +279,12 @@ router.post('/:id/schemes/:schemeId', (req, res) => {
  * PUT /api/users/:id/schemes/:schemeId
  * Update saved scheme status
  */
-router.put('/:id/schemes/:schemeId', (req, res) => {
+router.put('/:id/schemes/:schemeId', async (req, res) => {
     try {
         const { id, schemeId } = req.params;
         const validated = schemeStatusSchema.parse(req.body);
 
-        const updated = updateSchemeStatus(
+        const updated = await updateSchemeStatus(
             id,
             parseInt(schemeId),
             validated.status,
@@ -321,10 +323,10 @@ router.put('/:id/schemes/:schemeId', (req, res) => {
  * DELETE /api/users/:id/schemes/:schemeId
  * Remove saved scheme
  */
-router.delete('/:id/schemes/:schemeId', (req, res) => {
+router.delete('/:id/schemes/:schemeId', async (req, res) => {
     try {
         const { id, schemeId } = req.params;
-        const removed = removeSchemeForUser(id, parseInt(schemeId));
+        const removed = await removeSchemeForUser(id, parseInt(schemeId));
 
         if (!removed) {
             return res.status(404).json({
@@ -355,7 +357,7 @@ router.get('/:id/recommendations', async (req, res) => {
         const { id } = req.params;
         const limit = Math.min(parseInt(req.query.limit as string) || 10, 20);
 
-        const profile = getUserProfile(id);
+        const profile = await getUserProfile(id);
 
         if (!profile) {
             return res.status(404).json({
