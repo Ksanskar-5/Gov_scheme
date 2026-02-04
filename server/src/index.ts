@@ -1,6 +1,7 @@
 import dotenv from 'dotenv';
 // Load environment variables FIRST before any other imports
-dotenv.config();
+// Use override to ensure .env values take precedence over system env vars
+dotenv.config({ override: true });
 console.log('🔧 ENV loaded. DATABASE_URL:', process.env.DATABASE_URL ? 'SET' : 'NOT SET');
 
 import express from 'express';
@@ -36,9 +37,27 @@ app.use(helmet({
     crossOriginResourcePolicy: { policy: 'cross-origin' },
 }));
 
-// CORS configuration
+// CORS configuration - allow multiple origins
+const allowedOrigins = [
+    'http://localhost:5173',
+    'http://localhost:8080',
+    'http://localhost:3000',
+    process.env.FRONTEND_URL,
+].filter(Boolean) as string[];
+
 app.use(cors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+    origin: (origin, callback) => {
+        // Allow requests with no origin (like mobile apps or curl)
+        if (!origin) return callback(null, true);
+
+        // Allow any vercel.app subdomain
+        if (origin.endsWith('.vercel.app')) return callback(null, true);
+
+        // Allow configured origins
+        if (allowedOrigins.includes(origin)) return callback(null, true);
+
+        callback(null, true); // Allow all for now during development
+    },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true,
@@ -73,8 +92,8 @@ async function startServer() {
         await initializeDatabase();
         console.log('✅ Database connected');
     } catch (error) {
-        console.warn('⚠️ Database connection failed - running in limited mode');
-        console.warn('   Some features may not work without database connection');
+        console.error('❌ Failed to connect to database:', error);
+        process.exit(1);
     }
 
     // ============================================

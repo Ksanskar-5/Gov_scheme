@@ -37,11 +37,11 @@ function rowToScheme(row: SchemeRow): Scheme {
 export async function getAllSchemes(page = 1, limit = 20): Promise<PaginatedResponse<Scheme>> {
     const offset = (page - 1) * limit;
 
-    const countResult = await pool.query('SELECT COUNT(*) as total FROM schemes');
+    const countResult = await pool.query('SELECT COUNT(*) as total FROM public.schemes');
     const total = parseInt(countResult.rows[0].total);
 
     const result = await pool.query(
-        `SELECT * FROM schemes ORDER BY name ASC LIMIT $1 OFFSET $2`,
+        `SELECT * FROM public.schemes ORDER BY name ASC LIMIT $1 OFFSET $2`,
         [limit, offset]
     );
 
@@ -57,12 +57,12 @@ export async function getAllSchemes(page = 1, limit = 20): Promise<PaginatedResp
 }
 
 export async function getSchemeById(id: number): Promise<Scheme | null> {
-    const result = await pool.query('SELECT * FROM schemes WHERE id = $1', [id]);
+    const result = await pool.query('SELECT * FROM public.schemes WHERE id = $1', [id]);
     return result.rows[0] ? rowToScheme(result.rows[0]) : null;
 }
 
 export async function getSchemeBySlug(slug: string): Promise<Scheme | null> {
-    const result = await pool.query('SELECT * FROM schemes WHERE slug = $1', [slug]);
+    const result = await pool.query('SELECT * FROM public.schemes WHERE slug = $1', [slug]);
     return result.rows[0] ? rowToScheme(result.rows[0]) : null;
 }
 
@@ -133,7 +133,7 @@ export async function searchSchemes(query: SearchQuery): Promise<PaginatedRespon
 
     // Count query
     const countResult = await pool.query(
-        `SELECT COUNT(*) as total FROM schemes ${whereClause}`,
+        `SELECT COUNT(*) as total FROM public.schemes ${whereClause}`,
         params
     );
     const total = parseInt(countResult.rows[0].total);
@@ -141,7 +141,7 @@ export async function searchSchemes(query: SearchQuery): Promise<PaginatedRespon
     // Data query
     const dataParams = [...params, limit, offset];
     const result = await pool.query(
-        `SELECT * FROM schemes ${whereClause} ORDER BY name ASC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
+        `SELECT * FROM public.schemes ${whereClause} ORDER BY name ASC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
         dataParams
     );
 
@@ -239,7 +239,7 @@ export async function smartSearch(
 
     const sql = `
         SELECT *, (${scoreExpr}) as score
-        FROM schemes
+        FROM public.schemes
         ${whereClause}
         ORDER BY score DESC, name ASC
         LIMIT $${scoreParamIndex} OFFSET $${scoreParamIndex + 1}
@@ -250,7 +250,7 @@ export async function smartSearch(
     // Count query
     const countParams = params.slice(0, paramIndex - 1);
     const countResult = await pool.query(
-        `SELECT COUNT(*) as total FROM schemes ${whereClause}`,
+        `SELECT COUNT(*) as total FROM public.schemes ${whereClause}`,
         countParams
     );
 
@@ -274,7 +274,7 @@ export async function smartSearch(
 
 export async function getCategories(): Promise<string[]> {
     const result = await pool.query(`
-        SELECT DISTINCT category FROM schemes 
+        SELECT DISTINCT category FROM public.schemes 
         WHERE category IS NOT NULL AND category != ''
         ORDER BY category
     `);
@@ -283,7 +283,7 @@ export async function getCategories(): Promise<string[]> {
 
 export async function getStates(): Promise<string[]> {
     const result = await pool.query(`
-        SELECT DISTINCT state FROM schemes 
+        SELECT DISTINCT state FROM public.schemes 
         WHERE state IS NOT NULL AND state != ''
         ORDER BY state
     `);
@@ -291,7 +291,7 @@ export async function getStates(): Promise<string[]> {
 }
 
 export async function getTags(): Promise<string[]> {
-    const result = await pool.query('SELECT tags FROM schemes WHERE tags IS NOT NULL');
+    const result = await pool.query('SELECT tags FROM public.schemes WHERE tags IS NOT NULL');
 
     const tagSet = new Set<string>();
     result.rows.forEach(row => {
@@ -318,7 +318,7 @@ export async function getSchemeStats(): Promise<{
             SUM(CASE WHEN level = 'Central' THEN 1 ELSE 0 END) as central,
             SUM(CASE WHEN level = 'State' THEN 1 ELSE 0 END) as state,
             COUNT(DISTINCT category) as categories
-        FROM schemes
+        FROM public.schemes
     `);
 
     const row = result.rows[0];

@@ -57,7 +57,7 @@ router.post('/', async (req, res) => {
                 currentSchemeId: validated.context?.currentSchemeId,
                 currentPage: validated.context?.currentPage,
                 userProfile: validated.context?.userProfile,
-                conversationHistory: validated.context?.conversationHistory || [],
+                conversationHistory: (validated.context?.conversationHistory || []) as ChatRequest['context']['conversationHistory'],
             },
         };
 
