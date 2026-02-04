@@ -46,7 +46,7 @@ export async function getAllSchemes(page = 1, limit = 20): Promise<PaginatedResp
     );
 
     return {
-        data: result.rows.map(rowToScheme),
+        data: result.rows.map(r => rowToScheme(r as SchemeRow)),
         pagination: {
             page,
             limit,
@@ -58,12 +58,12 @@ export async function getAllSchemes(page = 1, limit = 20): Promise<PaginatedResp
 
 export async function getSchemeById(id: number): Promise<Scheme | null> {
     const result = await pool.query('SELECT * FROM public.schemes WHERE id = $1', [id]);
-    return result.rows[0] ? rowToScheme(result.rows[0]) : null;
+    return result.rows[0] ? rowToScheme(result.rows[0] as SchemeRow) : null;
 }
 
 export async function getSchemeBySlug(slug: string): Promise<Scheme | null> {
     const result = await pool.query('SELECT * FROM public.schemes WHERE slug = $1', [slug]);
-    return result.rows[0] ? rowToScheme(result.rows[0]) : null;
+    return result.rows[0] ? rowToScheme(result.rows[0] as SchemeRow) : null;
 }
 
 export async function searchSchemes(query: SearchQuery): Promise<PaginatedResponse<Scheme>> {
@@ -146,7 +146,7 @@ export async function searchSchemes(query: SearchQuery): Promise<PaginatedRespon
     );
 
     return {
-        data: result.rows.map(rowToScheme),
+        data: result.rows.map(r => rowToScheme(r as SchemeRow)),
         pagination: {
             page,
             limit,
@@ -256,7 +256,7 @@ export async function smartSearch(
 
     return {
         data: result.rows.map(row => ({
-            ...rowToScheme(row),
+            ...rowToScheme(row as SchemeRow),
             relevanceScore: parseInt(row.score) || 0,
         })),
         pagination: {

@@ -97,7 +97,7 @@ export async function getUserProfile(id: string): Promise<UserProfile | null> {
         'SELECT * FROM public.user_profiles WHERE id = $1',
         [id]
     );
-    return result.rows[0] ? rowToProfile(result.rows[0]) : null;
+    return result.rows[0] ? rowToProfile(result.rows[0] as UserProfileRow) : null;
 }
 
 export async function updateUserProfile(id: string, updates: Partial<UserProfile>): Promise<UserProfile | null> {

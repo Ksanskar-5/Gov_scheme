@@ -18,6 +18,14 @@ export interface User {
     created_at: Date;
 }
 
+interface UserRow {
+    id: string;
+    email: string;
+    password_hash: string;
+    name: string | null;
+    created_at: Date;
+}
+
 export interface AuthResult {
     user: User;
     token: string;
@@ -67,7 +75,7 @@ export async function createUser(email: string, password: string, name?: string)
 
     try {
         const result = await pool.query(query, [email.toLowerCase(), passwordHash, name || null]);
-        const user = result.rows[0];
+        const user: User = result.rows[0] as User;
         const token = generateToken(user.id);
 
         return { user, token };
@@ -124,7 +132,7 @@ export async function getUserById(id: string): Promise<User | null> {
         return null;
     }
 
-    return result.rows[0];
+    return result.rows[0] as User;
 }
 
 export async function getUserByEmail(email: string): Promise<User | null> {
@@ -140,5 +148,5 @@ export async function getUserByEmail(email: string): Promise<User | null> {
         return null;
     }
 
-    return result.rows[0];
+    return result.rows[0] as User;
 }

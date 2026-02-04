@@ -581,19 +581,22 @@ export default function SchemeDetail() {
                   <CardTitle className="text-lg">How to Apply</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-4">
+                  <div className="space-y-6">
                     {applicationSteps.map((step, index) => (
                       <div key={step.step} className="flex gap-4">
                         <div className="flex flex-col items-center">
-                          <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-medium">
+                          <div className="w-10 h-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-base font-semibold shadow-md">
                             {step.step}
                           </div>
                           {index < applicationSteps.length - 1 && (
-                            <div className="w-0.5 h-full bg-border mt-2" />
+                            <div className="w-0.5 flex-1 bg-border mt-3 min-h-[40px]" />
                           )}
                         </div>
-                        <div className="flex-1 pb-6">
-                          <p className="text-sm text-muted-foreground">{step.description}</p>
+                        <div className="flex-1 pb-4">
+                          <p className="font-medium text-foreground mb-1">{step.title}</p>
+                          <div className="p-3 rounded-lg bg-secondary/30 border border-border/50">
+                            <p className="text-sm text-muted-foreground leading-relaxed">{step.description}</p>
+                          </div>
                         </div>
                       </div>
                     ))}
