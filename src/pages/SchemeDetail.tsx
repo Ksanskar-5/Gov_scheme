@@ -310,16 +310,21 @@ export default function SchemeDetail() {
     const steps: Array<{ step: number; title: string; description: string }> = [];
 
     // Strategy 1: Split by "Step N:" pattern (case insensitive)
-    const stepMatches = text.match(/Step\s*(\d+)\s*[:\.\-\)]([^S]*?)(?=Step\s*\d+|$)/gi);
+    // Fix: Changed [^S]*? to .*? to allow 'S' characters in description
+    const stepMatches = text.match(/Step\s*(\d+)\s*[:\.\-\)](.*?)(?=Step\s*\d+|$)/gis);
     if (stepMatches && stepMatches.length > 0) {
       stepMatches.forEach((match, index) => {
-        const descMatch = match.match(/Step\s*\d+\s*[:\.\-\)]\s*(.*)/i);
-        if (descMatch && descMatch[1].trim().length > 5) {
-          steps.push({
-            step: index + 1,
-            title: `Step ${index + 1}`,
-            description: descMatch[1].trim()
-          });
+        // Extract content after "Step N:"
+        const parts = match.match(/Step\s*\d+\s*[:\.\-\)]\s*(.*)/is);
+        if (parts && parts[1]) {
+          const desc = parts[1].trim();
+          if (desc.length > 5) {
+            steps.push({
+              step: index + 1,
+              title: `Step ${index + 1}`,
+              description: desc
+            });
+          }
         }
       });
     }
