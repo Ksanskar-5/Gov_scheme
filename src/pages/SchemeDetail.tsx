@@ -166,33 +166,182 @@ export default function SchemeDetail() {
   const eligibilityConfig = getEligibilityConfig(eligibility?.status);
   const EligibilityIcon = eligibilityConfig.icon;
 
-  // Parse eligibility criteria from text
+  // Parse eligibility criteria from text - handles various formats
   const parseEligibilityCriteria = (text: string): string[] => {
     if (!text) return [];
-    // Split by common delimiters
-    const lines = text.split(/\n|;|\d+\.\s+/).filter(line => line.trim().length > 10);
-    return lines.slice(0, 6).map(line => line.trim().replace(/^[-•*]\s*/, ''));
+
+    // Try multiple splitting strategies
+    let lines: string[] = [];
+
+    // Strategy 1: Split by newlines
+    if (text.includes('\n')) {
+      lines = text.split(/\n/).filter(line => line.trim().length > 10);
+    }
+
+    // Strategy 2: Split by numbered patterns (1. 2. 3. or 1) 2) 3))
+    if (lines.length === 0) {
+      const numberedParts = text.split(/(?:^|[.\s]+)\d+[.:)\-]\s*/);
+      lines = numberedParts.filter(p => p.trim().length > 10);
+    }
+
+    // Strategy 3: Split by bullet patterns or semicolons
+    if (lines.length === 0) {
+      lines = text.split(/[;•●○]|(?:\s[-–]\s)/).filter(line => line.trim().length > 10);
+    }
+
+    // Strategy 4: Split by "and" or common conjunction patterns for list-like text
+    if (lines.length <= 1 && text.length > 100) {
+      lines = text.split(/(?:\s+and\s+|\s+or\s+|,\s+(?=[A-Z]))/i).filter(p => p.trim().length > 15);
+    }
+
+    // Strategy 5: Split by sentence endings followed by capital letters
+    if (lines.length <= 1 && text.length > 100) {
+      lines = text.split(/\.\s+(?=[A-Z])/).filter(p => p.trim().length > 20);
+    }
+
+    return lines.slice(0, 6).map(line => line.trim().replace(/^[-•*\d.:)\s]+/, ''));
   };
 
-  // Parse documents from text
+  // Parse documents from text - handles various formats
   const parseDocuments = (text: string): string[] => {
     if (!text) return [];
-    const lines = text.split(/\n|;|\d+\.\s+/).filter(line => line.trim().length > 5);
-    return lines.slice(0, 10).map(line => line.trim().replace(/^[-•*]\s*/, ''));
+
+    let docs: string[] = [];
+
+    // Strategy 1: Split by newlines
+    if (text.includes('\n')) {
+      docs = text.split(/\n/).filter(line => line.trim().length > 3);
+    }
+
+    // Strategy 2: Split by numbered patterns
+    if (docs.length === 0) {
+      const numberedParts = text.split(/\d+[.:)\-]\s*/);
+      docs = numberedParts.filter(p => p.trim().length > 3);
+    }
+
+    // Strategy 3: Split by common document keywords
+    if (docs.length <= 1 && text.length > 30) {
+      // Look for document types and split before them
+      const docKeywords = /(Aadhaar|Aadhar|PAN|Voter|Ration|Income|Certificate|Card|Document|Proof|Statement|Photo|Passport|License|Registration)/gi;
+
+      // Find all matches and their positions
+      const matches: { word: string; index: number }[] = [];
+      let match;
+      while ((match = docKeywords.exec(text)) !== null) {
+        matches.push({ word: match[0], index: match.index });
+      }
+
+      if (matches.length > 1) {
+        docs = [];
+        for (let i = 0; i < matches.length; i++) {
+          const start = matches[i].index;
+          const end = i < matches.length - 1 ? matches[i + 1].index : text.length;
+          const segment = text.slice(start, end).trim().replace(/[,;]\s*$/, '');
+          if (segment.length > 3) {
+            docs.push(segment);
+          }
+        }
+      }
+    }
+
+    // Strategy 4: Split by semicolons or "and"
+    if (docs.length <= 1 && text.length > 20) {
+      docs = text.split(/[;]|\s+and\s+/i).filter(p => p.trim().length > 3);
+    }
+
+    // Clean up and limit results
+    return docs.slice(0, 10).map(doc => doc.trim().replace(/^[-•*\d.:)\s]+/, ''));
   };
 
-  // Parse application steps
+  // Parse application steps - handles various formats including inline steps
   const parseApplicationSteps = (text: string): Array<{ step: number; title: string; description: string }> => {
     if (!text) return [];
-    const lines = text.split(/\n/).filter(line => line.trim().length > 10);
-    return lines.slice(0, 8).map((line, index) => {
-      const cleaned = line.trim().replace(/^(?:Step\s*)?(\d+)[.:)\-]\s*/i, '');
-      return {
-        step: index + 1,
-        title: `Step ${index + 1}`,
-        description: cleaned
-      };
-    });
+
+    const steps: Array<{ step: number; title: string; description: string }> = [];
+
+    // Strategy 1: Split by "Step N:" pattern (case insensitive)
+    const stepMatches = text.match(/Step\s*(\d+)\s*[:\.\-\)]([^S]*?)(?=Step\s*\d+|$)/gi);
+    if (stepMatches && stepMatches.length > 0) {
+      stepMatches.forEach((match, index) => {
+        const descMatch = match.match(/Step\s*\d+\s*[:\.\-\)]\s*(.*)/i);
+        if (descMatch && descMatch[1].trim().length > 5) {
+          steps.push({
+            step: index + 1,
+            title: `Step ${index + 1}`,
+            description: descMatch[1].trim()
+          });
+        }
+      });
+    }
+
+    // Strategy 2: Split by numbered patterns
+    if (steps.length === 0) {
+      const numberedMatches = text.match(/\d+[.:)\-]\s*[^0-9]+(?=\d+[.:)\-]|$)/g);
+      if (numberedMatches && numberedMatches.length > 1) {
+        numberedMatches.forEach((match, index) => {
+          const cleaned = match.replace(/^\d+[.:)\-]\s*/, '').trim();
+          if (cleaned.length > 5) {
+            steps.push({
+              step: index + 1,
+              title: `Step ${index + 1}`,
+              description: cleaned
+            });
+          }
+        });
+      }
+    }
+
+    // Strategy 3: Split by newlines
+    if (steps.length === 0 && text.includes('\n')) {
+      const lines = text.split(/\n/).filter(line => line.trim().length > 10);
+      lines.slice(0, 8).forEach((line, index) => {
+        const cleaned = line.trim().replace(/^(?:Step\s*)?\d*[.:)\-]\s*/i, '');
+        steps.push({
+          step: index + 1,
+          title: `Step ${index + 1}`,
+          description: cleaned
+        });
+      });
+    }
+
+    // Strategy 4: Split by action verbs for instruction-like text
+    if (steps.length === 0 && text.length > 50) {
+      const actionPattern = /(Visit|Go to|Register|Fill|Submit|Upload|Click|Select|Enter|Verify|Wait for|Download|Apply|Complete|Open|Login|Sign|Check|Provide)/gi;
+      const matches: { verb: string; index: number }[] = [];
+      let match;
+      while ((match = actionPattern.exec(text)) !== null) {
+        matches.push({ verb: match[0], index: match.index });
+      }
+
+      if (matches.length > 1) {
+        for (let i = 0; i < matches.length; i++) {
+          const start = matches[i].index;
+          const end = i < matches.length - 1 ? matches[i + 1].index : text.length;
+          const segment = text.slice(start, end).trim().replace(/[,;.\s]+$/, '');
+          if (segment.length > 10) {
+            steps.push({
+              step: steps.length + 1,
+              title: `Step ${steps.length + 1}`,
+              description: segment
+            });
+          }
+        }
+      }
+    }
+
+    // Strategy 5: Split into sentences as last resort
+    if (steps.length === 0 && text.length > 50) {
+      const sentences = text.split(/\.\s+/).filter(s => s.trim().length > 15);
+      sentences.slice(0, 6).forEach((sentence, index) => {
+        steps.push({
+          step: index + 1,
+          title: `Step ${index + 1}`,
+          description: sentence.trim() + (sentence.endsWith('.') ? '' : '.')
+        });
+      });
+    }
+
+    return steps.slice(0, 8);
   };
 
   // Extract benefit amount
