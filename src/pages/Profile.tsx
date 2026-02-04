@@ -3,17 +3,20 @@ import {
   User,
   MapPin,
   Briefcase,
-  IndianRupee,
   HelpCircle,
   Save,
   CheckCircle2,
-  RefreshCw
+  RefreshCw,
+  GraduationCap,
+  Users,
+  Heart
 } from "lucide-react";
 import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -31,6 +34,7 @@ import { states } from "@/data/mockSchemes";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { getUserProfile, createUserProfile, updateUserProfile } from "@/lib/api";
+import { calculateFormCompleteness } from "@/lib/profileUtils";
 
 const professions = [
   "Farmer",
@@ -60,18 +64,53 @@ const categories = [
   { label: "EWS", value: "ews" }
 ];
 
+const educationLevels = [
+  { label: "Below 10th", value: "below_10th" },
+  { label: "10th Pass", value: "10th_pass" },
+  { label: "12th Pass", value: "12th_pass" },
+  { label: "Graduate", value: "graduate" },
+  { label: "Post Graduate", value: "post_graduate" },
+  { label: "Professional Degree", value: "professional" }
+];
+
+const employmentStatuses = [
+  { label: "Unemployed", value: "unemployed" },
+  { label: "Self Employed", value: "self_employed" },
+  { label: "Private Sector", value: "private_sector" },
+  { label: "Government Job", value: "government" },
+  { label: "Student", value: "student" },
+  { label: "Retired", value: "retired" }
+];
+
 export default function Profile() {
   const { user } = useAuth();
   const [profileExists, setProfileExists] = useState(false);
   const [formData, setFormData] = useState({
+    // Basic Info
     fullName: "",
     age: "",
     gender: "",
+    category: "",
+    // Location
     state: "",
     district: "",
+    // Employment & Income
     profession: "",
     incomeRange: "",
-    category: ""
+    employmentStatus: "",
+    // Education & Family
+    educationLevel: "",
+    familySize: "",
+    // Special Categories (boolean flags)
+    isDisabled: false,
+    isMinority: false,
+    isBPL: false,
+    isStudent: false,
+    isFarmer: false,
+    isBusinessOwner: false,
+    isWorker: false,
+    isWidow: false,
+    isSeniorCitizen: false,
   });
 
   const [isSaving, setIsSaving] = useState(false);
@@ -89,15 +128,28 @@ export default function Profile() {
         const response = await getUserProfile(user.id);
         if (response.success && response.data) {
           setProfileExists(true);
+          const data = response.data;
           setFormData({
-            fullName: response.data.name || "",
-            age: response.data.age?.toString() || "",
-            gender: response.data.gender || "",
-            state: response.data.state || "",
-            district: response.data.district || "",
-            profession: response.data.profession || "",
-            incomeRange: response.data.incomeRange || "",
-            category: response.data.category || ""
+            fullName: data.name || "",
+            age: data.age?.toString() || "",
+            gender: data.gender || "",
+            category: data.category || "",
+            state: data.state || "",
+            district: data.district || "",
+            profession: data.profession || "",
+            incomeRange: data.incomeRange || "",
+            employmentStatus: data.employmentStatus || "",
+            educationLevel: data.educationLevel || "",
+            familySize: data.familySize?.toString() || "",
+            isDisabled: data.isDisabled || false,
+            isMinority: data.isMinority || false,
+            isBPL: data.isBPL || false,
+            isStudent: data.isStudent || false,
+            isFarmer: data.isFarmer || false,
+            isBusinessOwner: data.isBusinessOwner || false,
+            isWorker: data.isWorker || false,
+            isWidow: data.isWidow || false,
+            isSeniorCitizen: data.isSeniorCitizen || false,
           });
         }
       } catch (error) {
@@ -110,13 +162,12 @@ export default function Profile() {
     loadProfile();
   }, [user?.id]);
 
+  // Calculate completeness using shared utility
   const calculateCompleteness = () => {
-    const fields = Object.values(formData);
-    const filled = fields.filter(v => v !== "").length;
-    return Math.round((filled / fields.length) * 100);
+    return calculateFormCompleteness(formData);
   };
 
-  const handleChange = (field: string, value: string) => {
+  const handleChange = (field: string, value: string | boolean) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
@@ -138,6 +189,18 @@ export default function Profile() {
         profession: formData.profession || undefined,
         incomeRange: formData.incomeRange || undefined,
         category: formData.category as 'general' | 'obc' | 'sc' | 'st' | 'ews' | undefined,
+        educationLevel: formData.educationLevel || undefined,
+        employmentStatus: formData.employmentStatus || undefined,
+        familySize: formData.familySize ? parseInt(formData.familySize) : undefined,
+        isDisabled: formData.isDisabled,
+        isMinority: formData.isMinority,
+        isBPL: formData.isBPL,
+        isStudent: formData.isStudent,
+        isFarmer: formData.isFarmer,
+        isBusinessOwner: formData.isBusinessOwner,
+        isWorker: formData.isWorker,
+        isWidow: formData.isWidow,
+        isSeniorCitizen: formData.isSeniorCitizen,
       };
 
       let response;
@@ -323,6 +386,49 @@ export default function Profile() {
               </CardContent>
             </Card>
 
+            {/* Education & Family */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <GraduationCap className="h-5 w-5" />
+                  Education & Family
+                </CardTitle>
+                <CardDescription>
+                  Helps match education and family-based schemes
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <Label htmlFor="educationLevel">Education Level</Label>
+                  <Select value={formData.educationLevel} onValueChange={(v) => handleChange("educationLevel", v)}>
+                    <SelectTrigger id="educationLevel">
+                      <SelectValue placeholder="Select education level" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {educationLevels.map((level) => (
+                        <SelectItem key={level.value} value={level.value}>
+                          {level.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="familySize">Family Size</Label>
+                  <Input
+                    id="familySize"
+                    type="number"
+                    placeholder="Number of family members"
+                    min="1"
+                    max="20"
+                    value={formData.familySize}
+                    onChange={(e) => handleChange("familySize", e.target.value)}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
             {/* Employment & Income */}
             <Card>
               <CardHeader>
@@ -345,6 +451,22 @@ export default function Profile() {
                       {professions.map((prof) => (
                         <SelectItem key={prof} value={prof}>
                           {prof}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="employmentStatus">Employment Status</Label>
+                  <Select value={formData.employmentStatus} onValueChange={(v) => handleChange("employmentStatus", v)}>
+                    <SelectTrigger id="employmentStatus">
+                      <SelectValue placeholder="Select status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {employmentStatuses.map((status) => (
+                        <SelectItem key={status.value} value={status.value}>
+                          {status.label}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -375,6 +497,121 @@ export default function Profile() {
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Special Categories */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Heart className="h-5 w-5" />
+                  Special Categories
+                </CardTitle>
+                <CardDescription>
+                  Check all that apply - these unlock special scheme eligibility
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="isBPL"
+                      checked={formData.isBPL}
+                      onCheckedChange={(checked) => handleChange("isBPL", checked === true)}
+                    />
+                    <Label htmlFor="isBPL" className="text-sm font-normal cursor-pointer">
+                      Below Poverty Line (BPL)
+                    </Label>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="isDisabled"
+                      checked={formData.isDisabled}
+                      onCheckedChange={(checked) => handleChange("isDisabled", checked === true)}
+                    />
+                    <Label htmlFor="isDisabled" className="text-sm font-normal cursor-pointer">
+                      Person with Disability
+                    </Label>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="isMinority"
+                      checked={formData.isMinority}
+                      onCheckedChange={(checked) => handleChange("isMinority", checked === true)}
+                    />
+                    <Label htmlFor="isMinority" className="text-sm font-normal cursor-pointer">
+                      Minority Community
+                    </Label>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="isSeniorCitizen"
+                      checked={formData.isSeniorCitizen}
+                      onCheckedChange={(checked) => handleChange("isSeniorCitizen", checked === true)}
+                    />
+                    <Label htmlFor="isSeniorCitizen" className="text-sm font-normal cursor-pointer">
+                      Senior Citizen (60+)
+                    </Label>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="isWidow"
+                      checked={formData.isWidow}
+                      onCheckedChange={(checked) => handleChange("isWidow", checked === true)}
+                    />
+                    <Label htmlFor="isWidow" className="text-sm font-normal cursor-pointer">
+                      Widow
+                    </Label>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="isStudent"
+                      checked={formData.isStudent}
+                      onCheckedChange={(checked) => handleChange("isStudent", checked === true)}
+                    />
+                    <Label htmlFor="isStudent" className="text-sm font-normal cursor-pointer">
+                      Student
+                    </Label>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="isFarmer"
+                      checked={formData.isFarmer}
+                      onCheckedChange={(checked) => handleChange("isFarmer", checked === true)}
+                    />
+                    <Label htmlFor="isFarmer" className="text-sm font-normal cursor-pointer">
+                      Farmer
+                    </Label>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="isBusinessOwner"
+                      checked={formData.isBusinessOwner}
+                      onCheckedChange={(checked) => handleChange("isBusinessOwner", checked === true)}
+                    />
+                    <Label htmlFor="isBusinessOwner" className="text-sm font-normal cursor-pointer">
+                      Business Owner
+                    </Label>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="isWorker"
+                      checked={formData.isWorker}
+                      onCheckedChange={(checked) => handleChange("isWorker", checked === true)}
+                    />
+                    <Label htmlFor="isWorker" className="text-sm font-normal cursor-pointer">
+                      Daily Wage Worker
+                    </Label>
+                  </div>
                 </div>
               </CardContent>
             </Card>
