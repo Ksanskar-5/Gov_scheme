@@ -158,6 +158,13 @@ export interface ChatResponse {
     reply: string;
     suggestedSchemes?: SchemeWithScore[];
     suggestedActions?: string[];
+    missingProfileFields?: string[];
+    applicationSteps?: {
+        step: number;
+        title: string;
+        description: string;
+        link?: string;
+    }[];
 }
 
 // API Response Types

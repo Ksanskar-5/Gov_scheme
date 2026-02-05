@@ -10,6 +10,7 @@ import Dashboard from "./pages/Dashboard";
 import Profile from "./pages/Profile";
 import MySchemes from "./pages/MySchemes";
 import Login from "./pages/Login";
+import AIChat from "./pages/AIChat";
 import AdminDashboard from "./pages/AdminDashboard";
 import NotFound from "./pages/NotFound";
 import FAQ from "./pages/FAQ";
@@ -31,13 +32,15 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <Routes>
-            <Route path="/" element={<Index />} />
+            <Route path="/" element={<AIChat />} />
+            <Route path="/landing" element={<Index />} />
             <Route path="/search" element={<SearchSchemes />} />
             <Route path="/scheme/:id" element={<SchemeDetail />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/my-schemes" element={<MySchemes />} />
             <Route path="/login" element={<Login />} />
+            <Route path="/chat" element={<AIChat />} />
             <Route path="/admin" element={<AdminDashboard />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />

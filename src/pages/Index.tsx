@@ -1,278 +1,334 @@
-import { useState, useEffect } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
-  Search,
-  ArrowRight,
-  GraduationCap,
-  Tractor,
-  Building2,
-  Users,
-  Heart,
-  Shield,
-  UserCheck,
-  Lock,
-  Sparkles,
-  CheckCircle2
+  Send, Bot, User, Sparkles, Loader2, ArrowRight,
+  GraduationCap, Tractor, Building2, Users, Heart, Shield, CheckCircle2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Layout } from "@/components/layout/Layout";
-import { getSchemeStats } from "@/lib/api";
+import {
+  sendChatMessage,
+  type ChatMessage,
+  type UserProfile
+} from "@/lib/api";
 
-const userCategories = [
-  {
-    icon: GraduationCap,
-    title: "Students",
-    description: "Scholarships, education loans, skill programs",
-    link: "/search?category=Education"
-  },
-  {
-    icon: Tractor,
-    title: "Farmers",
-    description: "Subsidies, crop insurance, equipment support",
-    link: "/search?category=Agriculture"
-  },
-  {
-    icon: Building2,
-    title: "MSMEs",
-    description: "Business loans, training, market access",
-    link: "/search?category=Business+%26+MSME"
-  },
-  {
-    icon: Users,
-    title: "Workers",
-    description: "Pension, insurance, skill development",
-    link: "/search?category=Social+Security"
-  },
-  {
-    icon: Heart,
-    title: "Families in Need",
-    description: "Housing, healthcare, social security",
-    link: "/search?category=Social+Security"
-  }
+const quickCategories = [
+  { icon: GraduationCap, label: "Students", query: "scholarships for students" },
+  { icon: Tractor, label: "Farmers", query: "schemes for farmers" },
+  { icon: Building2, label: "Business", query: "business loans and MSME schemes" },
+  { icon: Users, label: "Women", query: "schemes for women empowerment" },
+  { icon: Heart, label: "Senior Citizens", query: "pension schemes for elderly" },
 ];
 
-const howItWorks = [
-  {
-    step: 1,
-    title: "Tell us about yourself",
-    description: "Share basic details like age, state, profession, and income. All data stays private."
-  },
-  {
-    step: 2,
-    title: "AI finds best schemes",
-    description: "Our AI matches your profile with 3,400+ government schemes across India."
-  },
-  {
-    step: 3,
-    title: "Apply with guidance",
-    description: "Get step-by-step help to complete your application successfully."
-  }
-];
-
-const trustIndicators = [
-  { icon: Shield, title: "Government Data", description: "Direct from official sources" },
-  { icon: UserCheck, title: "No Middlemen", description: "Apply directly, save money" },
-  { icon: Lock, title: "Privacy First", description: "Your data is never shared" }
+const suggestedQuestions = [
+  "What schemes am I eligible for?",
+  "Find education loans for college students",
+  "Housing schemes for low income families",
+  "Health insurance schemes in India",
 ];
 
 export default function Index() {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [stats, setStats] = useState<{ total: number; central: number; state: number } | null>(null);
   const navigate = useNavigate();
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [inputValue, setInputValue] = useState("");
+  const [isTyping, setIsTyping] = useState(false);
+  const [hasStartedChat, setHasStartedChat] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  // Fetch scheme stats on mount
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
   useEffect(() => {
-    async function loadStats() {
-      const result = await getSchemeStats();
-      if (result.success && result.data) {
-        setStats(result.data);
-      }
+    scrollToBottom();
+  }, [messages]);
+
+  // Focus input on load
+  useEffect(() => {
+    if (inputRef.current) {
+      inputRef.current.focus();
     }
-    loadStats();
   }, []);
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (searchQuery.trim()) {
-      navigate(`/search?q=${encodeURIComponent(searchQuery)}`);
+  const getUserProfile = (): Partial<UserProfile> | undefined => {
+    const stored = localStorage.getItem("userProfile");
+    return stored ? JSON.parse(stored) : undefined;
+  };
+
+  const handleSend = async (messageOverride?: string) => {
+    const messageToSend = messageOverride || inputValue.trim();
+    if (!messageToSend || isTyping) return;
+
+    // Start chat mode
+    if (!hasStartedChat) {
+      setHasStartedChat(true);
+      // Add welcome message first
+      const welcomeMessage: ChatMessage = {
+        role: "assistant",
+        content: "Hi! I'm your AI assistant. I'll help you find government schemes you're eligible for. Just tell me what you need! 🎯",
+        timestamp: new Date().toISOString()
+      };
+      setMessages([welcomeMessage]);
+    }
+
+    const userMessage: ChatMessage = {
+      role: "user",
+      content: messageToSend,
+      timestamp: new Date().toISOString()
+    };
+
+    setMessages(prev => [...prev, userMessage]);
+    setInputValue("");
+    setIsTyping(true);
+
+    try {
+      const result = await sendChatMessage(messageToSend, {
+        currentPage: "home",
+        userProfile: getUserProfile(),
+        conversationHistory: messages.slice(-10),
+      });
+
+      if (result.success && result.data) {
+        const aiMessage: ChatMessage = {
+          role: "assistant",
+          content: result.data.reply,
+          timestamp: new Date().toISOString()
+        };
+        setMessages(prev => [...prev, aiMessage]);
+      } else {
+        throw new Error("Failed");
+      }
+    } catch {
+      const errorMessage: ChatMessage = {
+        role: "assistant",
+        content: "Sorry, I'm having trouble connecting right now. Please try again!",
+        timestamp: new Date().toISOString()
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsTyping(false);
     }
   };
 
-  const totalSchemes = stats?.total?.toLocaleString() || "3,400+";
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
+  const handleQuickCategory = (query: string) => {
+    handleSend(query);
+  };
 
   return (
     <Layout>
-      {/* Hero Section */}
-      <section className="relative overflow-hidden" style={{ background: 'var(--gradient-hero)' }}>
-        <div className="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg%20width%3D%2260%22%20height%3D%2260%22%20viewBox%3D%220%200%2060%2060%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Cg%20fill%3D%22none%22%20fill-rule%3D%22evenodd%22%3E%3Cg%20fill%3D%22%23ffffff%22%20fill-opacity%3D%220.03%22%3E%3Cpath%20d%3D%22M36%2034v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6%2034v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6%204V0H4v4H0v2h4v4h2V6h4V4H6z%22%2F%3E%3C%2Fg%3E%3C%2Fg%3E%3C%2Fsvg%3E')] opacity-50" />
+      <div className="min-h-[calc(100vh-180px)] flex flex-col">
+        {/* Hero Section - Compact when chatting */}
+        <section
+          className={`relative transition-all duration-500 ${hasStartedChat ? 'py-6' : 'py-12 md:py-20'
+            }`}
+          style={{ background: 'var(--gradient-hero)' }}
+        >
+          <div className="container-gov">
+            <div className="text-center max-w-3xl mx-auto">
+              {!hasStartedChat && (
+                <>
+                  <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary-foreground/10 text-primary-foreground text-sm mb-4 animate-fade-in">
+                    <Sparkles className="h-4 w-4" />
+                    <span>AI-powered scheme discovery</span>
+                  </div>
 
-        <div className="container-gov relative">
-          <div className="py-16 md:py-24 lg:py-32 text-center max-w-4xl mx-auto">
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary-foreground/10 text-primary-foreground text-sm mb-6 animate-fade-in">
-              <Sparkles className="h-4 w-4" />
-              <span>AI-powered scheme discovery</span>
+                  <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-primary-foreground leading-tight mb-4 animate-fade-in">
+                    Find government schemes you're{" "}
+                    <span className="text-gradient">eligible</span> for
+                  </h1>
+
+                  <p className="text-base md:text-lg text-primary-foreground/80 mb-8 animate-fade-in">
+                    Just type what you need — our AI will find the best schemes for you.
+                  </p>
+                </>
+              )}
+
+              {hasStartedChat && (
+                <h2 className="text-lg font-semibold text-primary-foreground flex items-center justify-center gap-2">
+                  <Bot className="h-5 w-5" />
+                  JanScheme AI Assistant
+                </h2>
+              )}
             </div>
-
-            <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-primary-foreground leading-tight mb-6 animate-fade-in">
-              Find government schemes you're{" "}
-              <span className="text-gradient">actually eligible</span> for
-            </h1>
-
-            <p className="text-lg md:text-xl text-primary-foreground/80 mb-8 max-w-2xl mx-auto animate-fade-in">
-              Personalized. Simple. No agents. Discover and apply for {totalSchemes} central & state schemes.
-            </p>
-
-            <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12 animate-slide-up">
-              <Link to="/profile" className="btn-hero">
-                Check my eligibility
-                <ArrowRight className="h-5 w-5" />
-              </Link>
-              <Link to="/search" className="btn-hero-outline">
-                Browse all schemes
-              </Link>
-            </div>
-
-            {/* Natural Language Search */}
-            <form onSubmit={handleSearch} className="max-w-2xl mx-auto animate-slide-up">
-              <div className="relative">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                <Input
-                  type="search"
-                  placeholder="Search in your own words... e.g., 'my father died during construction work'"
-                  className="pl-12 pr-4 h-14 text-base bg-card border-0 shadow-gov-lg rounded-xl"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  aria-label="Search government schemes in natural language"
-                />
-                <Button
-                  type="submit"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 bg-accent hover:bg-accent/90"
-                >
-                  Search
-                </Button>
-              </div>
-              <p className="text-primary-foreground/60 text-sm mt-3">
-                Try: "education loan for engineering" or "housing scheme for EWS"
-              </p>
-            </form>
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* How It Works */}
-      <section className="section-padding bg-background">
-        <div className="container-gov">
-          <div className="text-center mb-12">
-            <h2 className="text-2xl md:text-3xl font-bold text-foreground mb-4">
-              How JanScheme Works
-            </h2>
-            <p className="text-muted-foreground max-w-xl mx-auto">
-              Three simple steps to find and apply for schemes you deserve
-            </p>
-          </div>
+        {/* Chat Section */}
+        <section className="flex-1 bg-background">
+          <div className="container-gov py-6">
+            <div className="max-w-3xl mx-auto">
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl mx-auto">
-            {howItWorks.map((item, index) => (
-              <div key={item.step} className="relative text-center">
-                {index < howItWorks.length - 1 && (
-                  <div className="hidden md:block absolute top-8 left-[60%] w-[80%] h-0.5 bg-border" />
+              {/* Messages Area */}
+              {hasStartedChat && (
+                <div className="bg-card rounded-xl border border-border shadow-sm mb-4 max-h-[400px] overflow-y-auto">
+                  <div className="p-4 space-y-4">
+                    {messages.map((message, index) => (
+                      <div
+                        key={index}
+                        className={`flex gap-3 ${message.role === "user" ? "justify-end" : "justify-start"} animate-fade-in`}
+                      >
+                        {message.role === "assistant" && (
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center shrink-0">
+                            <Sparkles className="h-4 w-4 text-white" />
+                          </div>
+                        )}
+
+                        <div
+                          className={`max-w-[80%] rounded-2xl px-4 py-3 ${message.role === "user"
+                              ? "bg-primary text-primary-foreground rounded-br-md"
+                              : "bg-muted rounded-bl-md"
+                            }`}
+                        >
+                          <p className="text-sm whitespace-pre-wrap leading-relaxed">
+                            {message.content.split(/(\*\*.*?\*\*)/).map((part, i) =>
+                              part.startsWith('**') && part.endsWith('**')
+                                ? <strong key={i}>{part.slice(2, -2)}</strong>
+                                : part
+                            )}
+                          </p>
+                        </div>
+
+                        {message.role === "user" && (
+                          <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center shrink-0">
+                            <User className="h-4 w-4 text-muted-foreground" />
+                          </div>
+                        )}
+                      </div>
+                    ))}
+
+                    {/* Typing indicator */}
+                    {isTyping && (
+                      <div className="flex gap-3 animate-fade-in">
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center">
+                          <Sparkles className="h-4 w-4 text-white" />
+                        </div>
+                        <div className="bg-muted rounded-2xl rounded-bl-md px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                            <span className="text-sm text-muted-foreground">Finding schemes...</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    <div ref={messagesEndRef} />
+                  </div>
+                </div>
+              )}
+
+              {/* Input Area */}
+              <div className="bg-card rounded-xl border border-border shadow-lg p-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 relative">
+                    <Input
+                      ref={inputRef}
+                      value={inputValue}
+                      onChange={(e) => setInputValue(e.target.value)}
+                      onKeyPress={handleKeyPress}
+                      placeholder={hasStartedChat ? "Type your question..." : "What kind of help do you need? (e.g., scholarship for college)"}
+                      className="pr-12 py-6 text-base rounded-xl bg-secondary/50 border-border/50 focus:border-primary"
+                      disabled={isTyping}
+                    />
+                    <Button
+                      size="icon"
+                      onClick={() => handleSend()}
+                      disabled={!inputValue.trim() || isTyping}
+                      className="absolute right-1.5 top-1/2 -translate-y-1/2 h-10 w-10 rounded-lg bg-accent hover:bg-accent/90"
+                    >
+                      <Send className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Suggested Questions - Show before chat starts */}
+                {!hasStartedChat && (
+                  <div className="mt-4">
+                    <p className="text-xs text-muted-foreground mb-2">Try asking:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {suggestedQuestions.map((question, index) => (
+                        <button
+                          key={index}
+                          onClick={() => handleSend(question)}
+                          className="px-3 py-1.5 rounded-full bg-secondary hover:bg-secondary/80 text-sm text-foreground transition-colors border border-border/50"
+                        >
+                          {question}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 )}
-                <div className="w-16 h-16 rounded-full bg-accent/10 flex items-center justify-center mx-auto mb-4 relative z-10">
-                  <span className="text-2xl font-bold text-accent">{item.step}</span>
-                </div>
-                <h3 className="font-semibold text-foreground mb-2">{item.title}</h3>
-                <p className="text-sm text-muted-foreground">{item.description}</p>
               </div>
-            ))}
-          </div>
-        </div>
-      </section>
 
-      {/* Who It's For */}
-      <section className="section-padding" style={{ background: 'var(--gradient-subtle)' }}>
-        <div className="container-gov">
-          <div className="text-center mb-12">
-            <h2 className="text-2xl md:text-3xl font-bold text-foreground mb-4">
-              Who Can Benefit?
-            </h2>
-            <p className="text-muted-foreground max-w-xl mx-auto">
-              Find schemes tailored for your situation
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-            {userCategories.map((category) => {
-              const Icon = category.icon;
-              return (
-                <Link
-                  key={category.title}
-                  to={category.link}
-                  className="group p-6 bg-card rounded-xl border border-border card-hover text-center"
-                >
-                  <div className="w-14 h-14 rounded-full bg-accent/10 flex items-center justify-center mx-auto mb-4 group-hover:bg-accent/20 transition-colors">
-                    <Icon className="h-7 w-7 text-accent" />
-                  </div>
-                  <h3 className="font-semibold text-foreground mb-1">{category.title}</h3>
-                  <p className="text-sm text-muted-foreground">{category.description}</p>
-                </Link>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-
-      {/* Trust Indicators */}
-      <section className="section-padding bg-background">
-        <div className="container-gov">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
-            {trustIndicators.map((item) => {
-              const Icon = item.icon;
-              return (
-                <div key={item.title} className="flex items-center gap-4 p-6 bg-card rounded-xl border border-border">
-                  <div className="w-12 h-12 rounded-full bg-success/10 flex items-center justify-center shrink-0">
-                    <Icon className="h-6 w-6 text-success" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-foreground">{item.title}</h3>
-                    <p className="text-sm text-muted-foreground">{item.description}</p>
+              {/* Quick Categories - Show before chat starts */}
+              {!hasStartedChat && (
+                <div className="mt-8">
+                  <h3 className="text-center text-muted-foreground text-sm mb-4">
+                    Or browse by category:
+                  </h3>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+                    {quickCategories.map((cat, index) => (
+                      <button
+                        key={index}
+                        onClick={() => handleQuickCategory(cat.query)}
+                        className="flex flex-col items-center gap-2 p-4 rounded-xl bg-card border border-border hover:border-primary/50 hover:shadow-md transition-all group"
+                      >
+                        <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                          <cat.icon className="h-6 w-6 text-primary" />
+                        </div>
+                        <span className="text-sm font-medium text-foreground">{cat.label}</span>
+                      </button>
+                    ))}
                   </div>
                 </div>
-              );
-            })}
-          </div>
-        </div>
-      </section>
+              )}
 
-      {/* CTA Section */}
-      <section className="section-padding bg-primary">
-        <div className="container-gov text-center">
-          <div className="max-w-2xl mx-auto">
-            <h2 className="text-2xl md:text-3xl font-bold text-primary-foreground mb-4">
-              Don't miss out on benefits you deserve
-            </h2>
-            <p className="text-primary-foreground/80 mb-8">
-              Create your profile now and get personalized scheme recommendations
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link to="/profile" className="btn-hero inline-flex items-center justify-center">
-                Get Started — It's Free
-                <ArrowRight className="h-5 w-5 ml-2" />
-              </Link>
-            </div>
-            <div className="mt-6 flex items-center justify-center gap-4 text-primary-foreground/60 text-sm">
-              <span className="flex items-center gap-1">
-                <CheckCircle2 className="h-4 w-4" />
-                No signup required
-              </span>
-              <span className="flex items-center gap-1">
-                <CheckCircle2 className="h-4 w-4" />
-                100% free
-              </span>
+              {/* Trust Indicators */}
+              {!hasStartedChat && (
+                <div className="mt-12 flex flex-wrap justify-center gap-6 text-sm text-muted-foreground">
+                  <div className="flex items-center gap-2">
+                    <Shield className="h-4 w-4 text-success" />
+                    <span>Official government data</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-success" />
+                    <span>3,400+ schemes</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="h-4 w-4 text-accent" />
+                    <span>AI-powered matching</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Action buttons when chatting */}
+              {hasStartedChat && (
+                <div className="mt-4 flex flex-wrap gap-3 justify-center">
+                  <Button variant="outline" size="sm" asChild>
+                    <Link to="/search">
+                      Browse All Schemes
+                      <ArrowRight className="h-4 w-4 ml-1" />
+                    </Link>
+                  </Button>
+                  <Button variant="outline" size="sm" asChild>
+                    <Link to="/profile">
+                      Complete My Profile
+                    </Link>
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
-        </div>
-      </section>
+        </section>
+      </div>
     </Layout>
   );
 }

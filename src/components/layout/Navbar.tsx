@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Search, Menu, X, User, LogIn } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -9,9 +9,19 @@ export function Navbar() {
   const { user, logout, isAuthenticated } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [isScrolled, setIsScrolled] = useState(false);
   const location = useLocation();
 
   const isActive = (path: string) => location.pathname === path;
+
+  // Add scroll listener for enhanced shadow
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 10);
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -21,7 +31,12 @@ export function Navbar() {
   };
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80">
+    <header
+      className={`sticky top-0 z-50 w-full border-b transition-all duration-300 ${isScrolled
+          ? 'border-border/50 bg-card/80 backdrop-blur-xl shadow-md'
+          : 'border-border/30 bg-card/95 backdrop-blur-md'
+        }`}
+    >
       <a href="#main-content" className="skip-link">
         Skip to main content
       </a>
