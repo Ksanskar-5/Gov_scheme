@@ -11,6 +11,7 @@ import { getSchemeById, getAllSchemes } from './schemeService.js';
 import { checkEligibility, scoreSchemesByEligibility } from './eligibilityEngine.js';
 import { smartSearch } from './schemeService.js';
 import { extractSearchKeywords } from './queryParser.js';
+import { extractProfileFromMessage, detectIntent } from './conversationManager.js';
 
 // ============================================
 // Chatbot Service - Enhanced with Profile Intelligence
@@ -243,39 +244,54 @@ function buildSmartPrompt(
     profile: Partial<UserProfile> | undefined,
     profileAnalysis: ProfileAnalysis,
     recommendedSchemes: SchemeWithEligibility[],
-    currentScheme?: Scheme
+    currentScheme?: Scheme,
+    isProfileMessage?: boolean
 ): string {
-    let prompt = `You are JanScheme Assistant, a helpful AI for Indian government welfare schemes.
+    let prompt = `You are JanScheme Assistant, a friendly AI advisor for Indian government welfare schemes.
 
-STRICT RULES:
-1. ONLY answer from the DATABASE CONTEXT provided below
-2. Never make up schemes or benefits
-3. Be concise (under 150 words)
-4. Use bullet points for lists
-5. If asking for user info, be conversational and friendly
+CONVERSATION FLOW (follow in order):
+1. When user shares their details -> FIRST confirm their profile briefly, THEN recommend 2-3 schemes
+2. If user asks about a specific scheme -> provide detailed info
+3. If user asks how to apply -> give step-by-step guidance
+4. If user asks about documents -> list required documents
 
-`;
-
-    // Add profile context
-    if (profile && Object.keys(profile).length > 0) {
-        prompt += `USER PROFILE:
-${profile.age ? `- Age: ${profile.age}` : ''}
-${profile.gender ? `- Gender: ${profile.gender}` : ''}
-${profile.state ? `- State: ${profile.state}` : ''}
-${profile.profession ? `- Profession: ${profile.profession}` : ''}
-${profile.incomeRange ? `- Income: ${profile.incomeRange}` : ''}
-${profile.category ? `- Category: ${profile.category}` : ''}
+RULES:
+- ONLY recommend from DATABASE CONTEXT below
+- Be warm and conversational
+- Keep responses under 200 words
+- Use bullet points for lists
 
 `;
-    }
 
-    // Add missing fields instruction if applicable
-    if (profileAnalysis.missingCriticalFields.length >= 3) {
-        prompt += `IMPORTANT: The user has not provided much profile info. 
-To give better recommendations, POLITELY ASK for ONE of these: ${profileAnalysis.missingCriticalFields.slice(0, 2).join(' or ')}.
-Frame it conversationally, not like a form.
+    // Check if user just provided profile info
+    const hasProfile = profile && Object.keys(profile).filter(k => (profile as any)[k]).length > 0;
+
+    if (hasProfile) {
+        // Build profile summary
+        const profileItems: string[] = [];
+        if (profile?.age) profileItems.push(`Age: ${profile.age}`);
+        if (profile?.gender) profileItems.push(`Gender: ${profile.gender}`);
+        if (profile?.state) profileItems.push(`State: ${profile.state}`);
+        if (profile?.profession) profileItems.push(`Profession: ${profile.profession}`);
+        if (profile?.incomeRange) profileItems.push(`Income: ${profile.incomeRange.replace(/_/g, ' ')}`);
+        if (profile?.category) profileItems.push(`Category: ${profile.category.toUpperCase()}`);
+        if (profile?.isFarmer) profileItems.push(`Farmer: Yes`);
+        if (profile?.isStudent) profileItems.push(`Student: Yes`);
+        if (profile?.isBPL) profileItems.push(`BPL: Yes`);
+
+        prompt += `USER PROFILE (confirm this to user):\n${profileItems.map(p => `- ${p}`).join('\n')}\n\n`;
+
+        // If this is a profile-sharing message, instruct to confirm and recommend
+        if (isProfileMessage) {
+            prompt += `IMPORTANT: User just shared their details. Your response MUST:
+1. FIRST confirm their profile briefly (e.g., "Got it! You are a [profession] from [state]...")
+2. THEN recommend ${Math.min(3, recommendedSchemes.length)} schemes from below that match their profile
+3. For each scheme: mention name and why it matches them
 
 `;
+        }
+    } else {
+        prompt += `USER PROFILE: Not provided yet\n\nIMPORTANT: Greet the user and ask for their basic details (age, state, profession) to find relevant schemes.\n\n`;
     }
 
     // Add recommended schemes as context
@@ -314,11 +330,24 @@ Application: ${currentScheme.application}
 
 export async function handleChatMessage(request: ChatRequest): Promise<ChatResponse> {
     const { message, context } = request;
-    const userProfile = context.userProfile;
 
-    // Analyze profile
-    const profileAnalysis = analyzeProfile(userProfile);
-    console.log(`📊 Profile completeness: ${profileAnalysis.completeness}%, missing: ${profileAnalysis.missingCriticalFields.join(', ')}`);
+    // Extract profile info from user's message and merge with existing profile
+    const mergedProfile = extractProfileFromMessage(message, context.userProfile || {});
+
+    // Detect if this is a profile-sharing message
+    const msgLower = message.toLowerCase();
+    const isProfileMessage = msgLower.includes('i am') ||
+        msgLower.includes('my age') ||
+        msgLower.includes('years old') ||
+        msgLower.includes('from') ||
+        msgLower.includes('farmer') ||
+        msgLower.includes('student') ||
+        msgLower.includes('i work');
+
+    // Analyze the merged profile
+    const profileAnalysis = analyzeProfile(mergedProfile);
+    console.log(`📊 Profile completeness: ${profileAnalysis.completeness}%`);
+    console.log(`📝 Is profile message: ${isProfileMessage}`);
 
     // Get current scheme if viewing
     let currentScheme: Scheme | undefined;
@@ -327,8 +356,8 @@ export async function handleChatMessage(request: ChatRequest): Promise<ChatRespo
         if (scheme) currentScheme = scheme;
     }
 
-    // Get personalized recommendations
-    const recommendedSchemes = await getPersonalizedRecommendations(userProfile, message, 5);
+    // Get personalized recommendations based on merged profile
+    const recommendedSchemes = await getPersonalizedRecommendations(mergedProfile, message, 5);
     console.log(`🎯 Found ${recommendedSchemes.length} personalized recommendations`);
 
     let reply: string;
@@ -347,10 +376,11 @@ export async function handleChatMessage(request: ChatRequest): Promise<ChatRespo
         if (client) {
             const smartPrompt = buildSmartPrompt(
                 message,
-                userProfile,
+                mergedProfile,
                 profileAnalysis,
                 recommendedSchemes,
-                currentScheme
+                currentScheme,
+                isProfileMessage
             );
 
             const model = client.getGenerativeModel({ model: 'gemini-2.0-flash' });
@@ -365,11 +395,11 @@ export async function handleChatMessage(request: ChatRequest): Promise<ChatRespo
             reply = result.response.text();
 
         } else {
-            reply = generateFallbackResponse(message, userProfile, profileAnalysis, recommendedSchemes);
+            reply = generateFallbackResponse(message, mergedProfile, profileAnalysis, recommendedSchemes);
         }
     } catch (error) {
         console.error('Chat error:', error);
-        reply = generateFallbackResponse(message, userProfile, profileAnalysis, recommendedSchemes);
+        reply = generateFallbackResponse(message, mergedProfile, profileAnalysis, recommendedSchemes);
     }
 
     // Generate smart suggested actions

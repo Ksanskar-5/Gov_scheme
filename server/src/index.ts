@@ -15,6 +15,7 @@ import searchRouter from './routes/search.js';
 import usersRouter from './routes/users.js';
 import chatRouter from './routes/chat.js';
 import authRouter from './routes/auth.js';
+import embeddingsRouter from './routes/embeddings.js';
 import {
     errorHandler,
     notFoundHandler,
@@ -117,6 +118,7 @@ async function startServer() {
     app.use('/api/users', usersRouter);
     app.use('/api/chat', chatRouter);
     app.use('/api/auth', authRouter);
+    app.use('/api/embeddings', embeddingsRouter);
 
     // ============================================
     // Error Handling
