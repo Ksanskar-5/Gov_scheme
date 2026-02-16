@@ -7,11 +7,9 @@ import type {
     SchemeWithScore,
     EligibilityResult
 } from '../types/index.js';
-import { getSchemeById, getAllSchemes } from './schemeService.js';
-import { checkEligibility, scoreSchemesByEligibility } from './eligibilityEngine.js';
-import { smartSearch } from './schemeService.js';
-import { extractSearchKeywords } from './queryParser.js';
+import { getSchemeById } from './schemeService.js';
 import { extractProfileFromMessage, detectIntent } from './conversationManager.js';
+import { hybridSearch, buildSearchQuery } from './vectorSearchService.js';
 
 // ============================================
 // Chatbot Service - Enhanced with Profile Intelligence
@@ -121,65 +119,117 @@ interface SchemeWithEligibility extends Scheme {
     unmatchedCriteria: string[];
 }
 
+// ============================================
+// LLM-Powered Search Query Generator
+// ============================================
+
+async function generateSearchQuery(
+    message: string,
+    profile: Partial<UserProfile> | undefined
+): Promise<string> {
+    try {
+        const client = getGeminiClient();
+        if (!client) {
+            // Fallback to rule-based query builder
+            return buildSearchQuery(message, profile || {});
+        }
+
+        // Build profile summary for the LLM
+        const profileParts: string[] = [];
+        if (profile?.age) profileParts.push(`Age: ${profile.age}`);
+        if (profile?.gender) profileParts.push(`Gender: ${profile.gender}`);
+        if (profile?.state) profileParts.push(`State: ${profile.state}`);
+        if (profile?.profession) profileParts.push(`Profession: ${profile.profession}`);
+        if (profile?.incomeRange) profileParts.push(`Income: ${profile.incomeRange.replace(/_/g, ' ')}`);
+        if (profile?.category) profileParts.push(`Category: ${profile.category.toUpperCase()}`);
+        if (profile?.isFarmer) profileParts.push(`Farmer: Yes`);
+        if (profile?.isStudent) profileParts.push(`Student: Yes`);
+        if (profile?.isBusinessOwner) profileParts.push(`Business Owner: Yes`);
+        if (profile?.isBPL) profileParts.push(`BPL: Yes`);
+        if (profile?.educationLevel) profileParts.push(`Education: ${profile.educationLevel}`);
+        if (profile?.employmentStatus) profileParts.push(`Employment: ${profile.employmentStatus}`);
+
+        const profileText = profileParts.length > 0
+            ? `User Profile:\n${profileParts.join('\n')}`
+            : 'No user profile available.';
+
+        const prompt = `You are a search query optimizer for an Indian government welfare schemes database.
+
+Given a user's message and their profile, generate a SHORT, FOCUSED search query (max 30 words) that will find the most relevant government schemes.
+
+The search query should:
+- Combine the user's explicit intent with relevant profile attributes
+- Include relevant Indian government scheme keywords (e.g., Yojana, subsidy, pension, scholarship)
+- Focus on eligibility-matching terms (age, state, profession, income level, category)
+- Be optimized for semantic similarity search against scheme descriptions
+
+${profileText}
+
+User's Message: "${message}"
+
+Respond with ONLY the optimized search query, nothing else. No quotes, no explanation.`;
+
+        const model = client.getGenerativeModel({ model: 'gemini-2.0-flash' });
+        const result = await model.generateContent(prompt);
+        const searchQuery = result.response.text().trim();
+
+        console.log(`🧠 LLM generated search query: "${searchQuery}"`);
+        return searchQuery;
+
+    } catch (error) {
+        console.error('⚠️ LLM query generation failed, using fallback:', error);
+        return buildSearchQuery(message, profile || {});
+    }
+}
+
+// ============================================
+// Personalized Recommendations (Vector Search)
+// ============================================
+
 async function getPersonalizedRecommendations(
     profile: Partial<UserProfile> | undefined,
     query?: string,
     limit: number = 5
 ): Promise<SchemeWithEligibility[]> {
-    let schemes: Scheme[] = [];
+    try {
+        // Step 1: Generate an optimized search query using LLM
+        const searchQuery = await generateSearchQuery(
+            query || 'find government schemes for me',
+            profile
+        );
+        console.log(`🔍 Searching with query: "${searchQuery}"`);
 
-    // Step 1: Get relevant schemes
-    if (query) {
-        const keywords = extractSearchKeywords(query);
-        if (keywords.length > 0) {
-            const searchResult = await smartSearch(keywords, {}, 1, 20);
-            schemes = searchResult.data;
+        // Step 2: Run hybrid vector search (semantic + keyword fallback + eligibility scoring)
+        const filters: { state?: string; category?: string } = {};
+        if (profile?.state) filters.state = profile.state;
+
+        const results = await hybridSearch(
+            searchQuery,
+            profile || {},
+            filters,
+            limit * 2 // Fetch extra to allow filtering
+        );
+
+        console.log(`🎯 Vector search returned ${results.length} results`);
+
+        // Step 3: Map to SchemeWithEligibility format
+        if (results.length === 0) {
+            return [];
         }
-    }
 
-    // If no query or no results, use profile to find schemes
-    if (schemes.length === 0 && profile) {
-        const analysis = analyzeProfile(profile);
-        if (analysis.detectedIntent.length > 0) {
-            const searchResult = await smartSearch(analysis.detectedIntent, {}, 1, 20);
-            schemes = searchResult.data;
-        }
-    }
-
-    // Fallback: get popular schemes
-    if (schemes.length === 0) {
-        const allSchemesResult = await getAllSchemes(1, 20);
-        schemes = allSchemesResult.data;
-    }
-
-    // Step 2: Score schemes by eligibility
-    if (!profile || Object.keys(profile).length === 0) {
-        // No profile - return schemes without eligibility scoring
-        return schemes.slice(0, limit).map(s => ({
-            ...s,
-            eligibility_status: 'unknown',
-            eligibility_score: 50,
-            relevanceScore: 50,
+        return results.slice(0, limit).map(scheme => ({
+            ...scheme,
+            eligibility_status: scheme.eligibilityStatus || 'unknown',
+            eligibility_score: scheme.eligibilityScore || 50,
+            relevanceScore: Math.round((scheme.similarity || 0.5) * 100),
             matchedCriteria: [],
             unmatchedCriteria: []
         }));
+
+    } catch (error) {
+        console.error('❌ Vector search recommendation failed:', error);
+        return [];
     }
-
-    // Run eligibility engine
-    const scored = scoreSchemesByEligibility(profile, schemes);
-
-    // Filter and map
-    return scored
-        .filter(item => item.eligibility.status !== 'not_eligible')
-        .slice(0, limit)
-        .map(item => ({
-            ...item.scheme,
-            eligibility_status: item.eligibility.status,
-            eligibility_score: item.score,
-            relevanceScore: item.score,
-            matchedCriteria: item.eligibility.matchedCriteria,
-            unmatchedCriteria: item.eligibility.unmatchedCriteria
-        }));
 }
 
 // ============================================
