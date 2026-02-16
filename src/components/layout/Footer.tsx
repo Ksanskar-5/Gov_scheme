@@ -3,19 +3,22 @@ import { Shield, Mail, Phone, ExternalLink } from "lucide-react";
 
 export function Footer() {
   return (
-    <footer className="bg-primary text-primary-foreground">
+    <footer className="bg-primary text-primary-foreground relative">
+      {/* Gradient top border */}
+      <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-accent via-warning to-accent" />
+
       <div className="container-gov section-padding">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
           {/* About */}
           <div>
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-10 h-10 rounded-lg bg-primary-foreground/10 flex items-center justify-center">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-11 h-11 rounded-xl bg-primary-foreground/10 flex items-center justify-center backdrop-blur-sm border border-primary-foreground/10">
                 <span className="font-bold text-lg">जन</span>
               </div>
               <span className="font-semibold text-lg">JanScheme</span>
             </div>
             <p className="text-primary-foreground/80 text-sm leading-relaxed">
-              Helping citizens discover and access government schemes with personalized recommendations. 
+              Helping citizens discover and access government schemes with personalized recommendations.
               No middlemen. No confusion.
             </p>
           </div>
@@ -52,9 +55,9 @@ export function Footer() {
             <h3 className="font-semibold mb-4">Resources</h3>
             <ul className="space-y-2 text-sm">
               <li>
-                <a 
-                  href="https://www.india.gov.in" 
-                  target="_blank" 
+                <a
+                  href="https://www.india.gov.in"
+                  target="_blank"
                   rel="noopener noreferrer"
                   className="text-primary-foreground/80 hover:text-primary-foreground transition-colors inline-flex items-center gap-1"
                 >
@@ -63,9 +66,9 @@ export function Footer() {
                 </a>
               </li>
               <li>
-                <a 
-                  href="https://www.myscheme.gov.in" 
-                  target="_blank" 
+                <a
+                  href="https://www.myscheme.gov.in"
+                  target="_blank"
                   rel="noopener noreferrer"
                   className="text-primary-foreground/80 hover:text-primary-foreground transition-colors inline-flex items-center gap-1"
                 >

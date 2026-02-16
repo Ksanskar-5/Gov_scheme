@@ -159,20 +159,20 @@ export function ChatWidget() {
       {/* Chat Toggle Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className={`fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full shadow-gov-lg flex items-center justify-center transition-all duration-300 ${isOpen
-            ? "bg-muted-foreground hover:bg-muted-foreground/90"
-            : "bg-gradient-to-r from-primary to-accent hover:opacity-90"
+        className={`fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full shadow-gov-lg flex items-center justify-center transition-all duration-300 group ${isOpen
+          ? "bg-muted-foreground hover:bg-muted-foreground/90 scale-95"
+          : "bg-gradient-to-r from-primary to-accent hover:scale-110 chat-button-glow"
           }`}
         aria-label={isOpen ? "Close chat" : "Open AI assistant"}
         aria-expanded={isOpen}
       >
         {isOpen ? (
-          <X className="h-6 w-6 text-white" />
+          <X className="h-6 w-6 text-white transition-transform duration-200" />
         ) : (
           <>
-            <MessageCircle className="h-6 w-6 text-white" />
-            <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-success flex items-center justify-center">
-              <Sparkles className="h-2.5 w-2.5 text-white" />
+            <MessageCircle className="h-6 w-6 text-white transition-transform duration-200 group-hover:scale-110" />
+            <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-success flex items-center justify-center animate-bounce-subtle">
+              <Sparkles className="h-3 w-3 text-white" />
             </span>
           </>
         )}
@@ -181,7 +181,7 @@ export function ChatWidget() {
       {/* Chat Panel */}
       {isOpen && (
         <div
-          className="fixed bottom-24 right-6 z-50 w-[380px] max-w-[calc(100vw-48px)] bg-card rounded-xl shadow-gov-xl border border-border overflow-hidden animate-slide-up"
+          className="fixed bottom-24 right-6 z-50 w-[380px] max-w-[calc(100vw-48px)] bg-card/95 backdrop-blur-xl rounded-2xl shadow-gov-xl border border-border/50 overflow-hidden animate-scale-in"
           role="dialog"
           aria-label="AI Chat Assistant"
         >
@@ -209,8 +209,8 @@ export function ChatWidget() {
                 className={`flex gap-2 ${message.role === "user" ? "flex-row-reverse" : ""}`}
               >
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${message.role === "user"
-                    ? "bg-accent text-white"
-                    : "bg-primary text-primary-foreground"
+                  ? "bg-accent text-white"
+                  : "bg-primary text-primary-foreground"
                   }`}>
                   {message.role === "user" ? (
                     <User className="h-4 w-4" />
@@ -219,8 +219,8 @@ export function ChatWidget() {
                   )}
                 </div>
                 <div className={`max-w-[80%] px-3 py-2 rounded-2xl text-sm whitespace-pre-line ${message.role === "user"
-                    ? "bg-accent text-white rounded-tr-sm"
-                    : "bg-card border border-border rounded-tl-sm"
+                  ? "bg-accent text-white rounded-tr-sm"
+                  : "bg-card border border-border rounded-tl-sm"
                   }`}>
                   {message.content}
                 </div>
