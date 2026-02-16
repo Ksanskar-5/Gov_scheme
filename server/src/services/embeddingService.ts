@@ -55,9 +55,9 @@ function createSchemeText(scheme: Scheme): string {
     if (scheme.tags) {
         if (Array.isArray(scheme.tags)) {
             tagsText = scheme.tags.join(' ');
-        } else if (typeof scheme.tags === 'string') {
+        } else if (typeof (scheme.tags as unknown) === 'string') {
             // PostgreSQL array format: {"tag1","tag2"} or just comma-separated
-            tagsText = scheme.tags.replace(/[{}"]/g, '').replace(/,/g, ' ');
+            tagsText = (scheme.tags as unknown as string).replace(/[{}"]/g, '').replace(/,/g, ' ');
         }
     }
 
